@@ -15,6 +15,8 @@ import math
 from .Backports.enum import Enum
 import os, re
 
+import sys #NSC temp
+
 class GearStandards(Enum):
   normal_system = 1
   radial_system = 2
@@ -958,7 +960,22 @@ Sunderland: The Sunderland machine is commonly used to make a double helical gea
       for body in teeth_bodies:
           toolBodies.add(body)
       combineInput = component.features.combineFeatures.createInput(root_cylinder, toolBodies)
-      root_cylinder = component.features.combineFeatures.add(combineInput).bodies[0]
+      combineFeature = component.features.combineFeatures.add(combineInput) #NSC C1
+      root_cylinder = combineFeature.bodies[0] #NSC C1
+      
+      #---------------------------------------------------
+      # NSC start   C1: Creates timeline group
+      
+      # Group everything used to create the gear in the timeline.
+      timelineGroups = self.design.design.timeline.timelineGroups
+      startIndex = component.features[0].timelineObject.index-2     # <--   Not good code but works
+      endIndex = combineFeature.timelineObject.index
+      timelineGroup = timelineGroups.add(startIndex, endIndex)
+      timelineGroup.name = component.name
+      
+      # NSC END
+      #---------------------------------------------------
+      
     sketch.isVisible = False
 
     return (gear, component, sketch, root_cylinder, tooth_body)
