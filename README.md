@@ -4,6 +4,9 @@ This is a "Branch" of Ross Korsky's Helical Gear Generator Add-in for Autodesk's
 His version can be downloaded [here](https://apps.autodesk.com/FUSION/en/Detail/Index?id=9029586664984391977&os=Mac&appLang=en).
 
 
+
+
+
 # Changes
 
 ## Timeline Grouping
@@ -15,12 +18,16 @@ Previously input persistence was achieved by saving the input values to attribut
 The new system just stores values in a variable. Persistence is lost if Fusion360 or the Add-In is restarted but persistence is not affected by undos. While a hybrid system would be possible, I do not think it is worth implementing.
 
 
+
+
 # TO-DO
 * [x] Setup version controll
 * [x] Group features in Timeline to take up less space
 * [x] Change persistent inputs so they won't reset after undo
 * [x] Fix Errors when not capturing design History
 * [ ] Add "Generate as Base feature" opting for better performance
+
+
 
 
 # Installation
