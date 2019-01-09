@@ -600,7 +600,7 @@ class HelicalGearAddin(fission.CommandBase):
     self.design = fission.DesignUtils()
     self.last_gear_stat_text = ''
     
-    self.pers = {'Pressure Angle': 0.3490658503988659, 'Backlash': 0.0, 'Gear Thickness': 1.0, 'Teeth': 16, 'Gear Standard': 'Normal System', 'Handedness': 'Right', 'Helix Angle': 0.5235987755982988, 'Module': 0.3}  #NSC C2 Initial persistence Dict
+    self.pers = {'Pressure Angle': 0.3490658503988659, 'Backlash': 0.0, 'Gear Thickness': 1.0, 'Teeth': 16, 'Gear Standard': 'Normal System', 'Handedness': 'Right', 'Helix Angle': 0.5235987755982988, 'Module': 0.3, 'Base Feature': True}  #NSC C2 Initial persistence Dict
 
   @property
   def is_repeatable(self):
@@ -697,6 +697,13 @@ Sunderland: The Sunderland machine is commonly used to make a double helical gea
       False,
       tooltip='Generate a full preview when checked.',
       persist=False)
+      
+    self.base_feature = factory.create_checkbox(
+     'base_feature',
+     'Base Feature',
+     self.pers['Base Feature'],
+     tooltip='Generates as a Base feature when checked.',
+     persist=False)
 
     self.error_message = factory.create_textbox('error_message', read_only=True, persist=False)
     self.error_message.isFullWidth = True
@@ -811,7 +818,7 @@ Sunderland: The Sunderland machine is commonly used to make a double helical gea
     #Preservers values to dictionary
     self.pers[self.gear_standard.name] = self.gear_standard.selectedItem.name
     self.pers[self.handedness.name] = self.handedness.selectedItem.name
-    for i in [self.helix_angle, self.pressure_angle, self.module, self.tooth_count, self.backlash, self.gear_thickness]:    #NSC C2
+    for i in [self.helix_angle, self.pressure_angle, self.module, self.tooth_count, self.backlash, self.gear_thickness, self.base_feature]:    #NSC C2
         self.pers[i.name] = i.value                                                                                         #NSC C2
     
     #NSC end
@@ -892,6 +899,11 @@ Sunderland: The Sunderland machine is commonly used to make a double helical gea
       gear.tooth_count,
       'R' if gear.handedness == Handedness.right else 'L',
       math.degrees(gear.helix_angle))
+
+    #NSC         C4: Starts a base feature for the gear 
+    if self.base_feature.value:
+        self.basefeat = component.features.baseFeatures.add()  #NSC
+        self.basefeat.startEdit()   #NSC
 
     pitch_helix = gear.pitch_helix
     l = self.gear_thickness.value
@@ -980,11 +992,19 @@ Sunderland: The Sunderland machine is commonly used to make a double helical gea
       # NSC start   C1: Creates timeline group
       
       # Group everything used to create the gear in the timeline.
-      timelineGroups = self.design.design.timeline.timelineGroups
-      startIndex = component.features[0].timelineObject.index-2     # <--   Not good code but works
-      endIndex = combineFeature.timelineObject.index
-      timelineGroup = timelineGroups.add(startIndex, endIndex)
-      timelineGroup.name = component.name
+      if self.base_feature.value:
+          self.basefeat.finishEdit()
+          
+          timelineGroups = self.design.design.timeline.timelineGroups
+          endIndex = self.basefeat.timelineObject.index
+          timelineGroup = timelineGroups.add(endIndex-1, endIndex)
+          timelineGroup.name = component.name
+      else:
+          timelineGroups = self.design.design.timeline.timelineGroups
+          startIndex = component.features[0].timelineObject.index-2     # <--   Not good code but works
+          endIndex = combineFeature.timelineObject.index
+          timelineGroup = timelineGroups.add(startIndex, endIndex)
+          timelineGroup.name = component.name
       
       # NSC END
       #---------------------------------------------------
