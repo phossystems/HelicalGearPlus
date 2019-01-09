@@ -973,7 +973,8 @@ Sunderland: The Sunderland machine is commonly used to make a double helical gea
           toolBodies.add(body)
       combineInput = component.features.combineFeatures.createInput(root_cylinder, toolBodies)
       combineFeature = component.features.combineFeatures.add(combineInput) #NSC C1
-      root_cylinder = combineFeature.bodies[0] #NSC C1
+      if combineFeature:    #NSC C3
+          root_cylinder = combineFeature.bodies[0] #NSC C1, C3 
       
       #---------------------------------------------------
       # NSC start   C1: Creates timeline group
