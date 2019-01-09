@@ -19,7 +19,7 @@ The new system just stores values in a variable. Persistence is lost if Fusion36
 * [x] Setup version controll
 * [x] Group features in Timeline to take up less space
 * [x] Change persistent inputs so they won't reset after undo
-* [ ] Fix Errors when not capturing design History
+* [x] Fix Errors when not capturing design History
 * [ ] Add "Generate as Base feature" opting for better performance
 
 
