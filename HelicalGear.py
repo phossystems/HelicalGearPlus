@@ -15,8 +15,6 @@ import math
 from .Backports.enum import Enum
 import os, re
 
-import sys #NSC temp
-
 class GearStandards(Enum):
   normal_system = 1
   radial_system = 2
@@ -595,11 +593,14 @@ class HelicalGearAddin(fission.CommandBase):
 
   Helical gears can be meshed in parallel or crossed orientations.
   [From Wikipedia]
-  """
+  """  
+  
   def __init__(self):
     super().__init__()
     self.design = fission.DesignUtils()
     self.last_gear_stat_text = ''
+    
+    self.pers = {'Pressure Angle': 0.3490658503988659, 'Backlash': 0.0, 'Gear Thickness': 1.0, 'Teeth': 16, 'Gear Standard': 'Normal System', 'Handedness': 'Right', 'Helix Angle': 0.5235987755982988, 'Module': 0.3}  #NSC C2 Initial persistence Dict
 
   @property
   def is_repeatable(self):
@@ -633,7 +634,7 @@ class HelicalGearAddin(fission.CommandBase):
       'Gear Standard',
       items=['Normal System', 'Radial System', 'Sunderland'],
       values=[GearStandards.normal_system, GearStandards.radial_system, GearStandards.sunderland],
-      default='Normal System',
+      default=self.pers['Gear Standard'], persist=False,    #NSC C2
       on_change=self.gear_standard_changed,
       help_image='resources/captions/NormalVsRadial.png',
       description="""The true involute pitch and involute geometry of a helical gear is in the plane of rotation (Radial System). However, because of the nature of tooth generation with a rack-type hob, a single tool can generate helical gears at all helix angles as well as standard spur gears. However, this means the normal pitch is the common denominator, and usually is taken as a standard value (e.g. 14.5 deg or most commonly 20 deg). In other words if you plan to have your gear manufactured with a standard hob you will likely want to use the "Normal System" and a pressure Angle of 20 degrees.
@@ -648,46 +649,46 @@ Sunderland: The Sunderland machine is commonly used to make a double helical gea
       'Handedness',
       items=['Left', 'Right'],
       values=[Handedness.left, Handedness.right],
-      default='Right',
+      default=self.pers['Handedness'], persist=False,    #NSC C2
       help_image='resources/captions/Handedness.png',
       description='Direction the tooth appears to lean when placed flat on a table. Helical gears of opposite hand operate on parallel shafts. Helical gears of the same hand operate at right angles.')
       #Both gears of a meshed pair must have the same helix angle and pressure able. \nHowever, the handedness (helix direction) must be opposite.
     self.helix_angle = factory.addValueInput(
       'helix_angle',
       'Helix Angle',
-      '30 deg', 'deg',
+      self.pers['Helix Angle'], 'deg', persist=False,    #NSC C2
       on_validate=lambda i:  self.gear_standard.eval() == GearStandards.sunderland or (i.eval() >= 0 and i.eval() < math.radians(88.0001)),
       help_image='resources/captions/HelixAngle.png',
       description='Angle of tooth twist. 0 degrees produces a standard spur gear.\nThe higher the helix angle the more twist the gear has.')
     self.pressure_angle = factory.addValueInput(
       'pressure_angle',
       'Pressure Angle',
-      '20 deg', 'deg',
+      self.pers['Pressure Angle'], 'deg', persist=False,    #NSC C2
       on_validate=lambda i: self.gear_standard.eval() == GearStandards.sunderland or (i.eval() >= 0 and i.eval() <= math.radians(70.0001)),
       description='The most common value for pressure angle is 20°, the second most common is 14.5°. The pressure angle defines the angle of the line of action which is a common tangent between the two base circles of a pair of gears. The short of it is this: leave this value at 20 degrees until you have reason to do otherwise - but know that any pair of gears MUST have the same pressure angle.')
     self.module = factory.addValueInput(
       'module',
       'Module',
-      '3 mm', 'mm',
+      self.pers['Module'], 'mm', persist=False,    #NSC C2
       on_validate=lambda i: i.eval() > 0,
       description='The module is the length of pitch diameter per tooth. Therefore m = d / z; where m is module, d is the pitch diameter of the gear, and z is the number of teeth.')
 
     self.tooth_count = factory.create_int_spinner(
       'tooth_count',
       'Teeth',
-      16,
+      self.pers['Teeth'],    #NSC C2
       min=1,
-      max=10000,
+      max=10000, persist=False,    #NSC C2
       description='Number of teeth the gear has. The higher the helix angle, and to some extent pressure angle, are the fewer teeth the gear needs to have to avoid undercutting. It is possible to create a Helical gear with a single tooth given a high enough Helix Angle.\n\nCAUTION: due to performance reasons, do not make gears with several hundred teeth.')
     self.backlash = factory.addValueInput(
       'backlash',
       'Backlash',
-      '0 mm', 'mm',
+      str(self.pers['Backlash']), 'mm', persist=False,    #NSC C2
       description='[experimental] a positive value here causes each tooth to be slightly narrower than the ideal tooth. In the real world having a perfect tooth is not often desired, it is better to build in a little backlash to reduce friction, allow room for lubricant between teeth, and to prevent jamming.\n\nBacklash is allowed to also be negative which has no real world application I\'m aware of but may be useful for compensating for undersized teeth which were 3D printed, etc.\n\nThe backlash value is split between this gear and its theoretical mate.')
     self.gear_thickness = factory.addValueInput(
       'gear_thickness',
       'Gear Thickness',
-      '10 mm', 'mm',
+      self.pers['Gear Thickness'], 'mm', persist=False,    #NSC C2
       on_validate=lambda i: i.eval() > 0,
       description='How thick you want the gear to be. CAUTION: making a gear really thick can cause some serious performance issues. If you wish to make a gear where the teeth wrap around multiple times it is recommend to see the "length per revolution" field in the "Gear Parameters" readout and use that value for your gear thickness then copy/rectangular pattern the gear body to reach your desired length. This is something which may be addressed in a future release.')
     self.full_preview = factory.create_checkbox(
@@ -715,7 +716,7 @@ Sunderland: The Sunderland machine is commonly used to make a double helical gea
     # Trigger any change events we have setup - the values may have been restored from saved state
     self.gear_standard_changed(self.gear_standard)
     self.update_warnings()
-
+    
   def __on_input_changed(self, _a) -> 'input_changed':
     args = adsk.core.InputChangedEventArgs.cast(_a)
     if args.input in (self.helix_angle, self.pressure_angle, self.module, self.tooth_count, self.gear_standard, self.backlash, self.gear_thickness):
@@ -803,7 +804,18 @@ Sunderland: The Sunderland machine is commonly used to make a double helical gea
 
   def on_execute(self, args) -> 'execute':
     self.generate_gear(True, False)
-    self.preserve_inputs()
+    
+    #---------------------------------------------------
+    # NSC start   C2: Improved value persistence
+         
+    #Preservers values to dictionary
+    self.pers[self.gear_standard.name] = self.gear_standard.selectedItem.name
+    self.pers[self.handedness.name] = self.handedness.selectedItem.name
+    for i in [self.helix_angle, self.pressure_angle, self.module, self.tooth_count, self.backlash, self.gear_thickness]:    #NSC C2
+        self.pers[i.name] = i.value                                                                                         #NSC C2
+    
+    #NSC end
+    #---------------------------------------------------
 
   def on_preview(self, args) -> 'preview':
     ret = self.generate_gear(self.full_preview.value, True)
