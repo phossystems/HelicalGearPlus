@@ -600,7 +600,7 @@ class HelicalGearAddin(fission.CommandBase):
     self.design = fission.DesignUtils()
     self.last_gear_stat_text = ''
     
-    self.pers = {'Pressure Angle': 0.3490658503988659, 'Backlash': 0.0, 'Gear Thickness': 1.0, 'Teeth': 16, 'Gear Standard': 'Normal System', 'Handedness': 'Right', 'Helix Angle': 0.5235987755982988, 'Module': 0.3, 'Base Feature': True}  #NSC C2 Initial persistence Dict
+    self.pers = {'Pressure Angle': 0.3490658503988659, 'Backlash': 0.0, 'Gear Thickness': 1.0, 'Teeth': 16, 'Gear Standard': 'Normal System', 'Handedness': 'Right', 'Helix Angle': 0.5235987755982988, 'Module': 0.3, 'Base Feature': False}  #NSC C2 Initial persistence Dict
 
   @property
   def is_repeatable(self):
@@ -702,7 +702,7 @@ Sunderland: The Sunderland machine is commonly used to make a double helical gea
      'base_feature',
      'Base Feature',
      self.pers['Base Feature'],
-     tooltip='Generates as a Base feature when checked.',
+     tooltip='Generates as a Base feature when checked. Slightly better performance when recomputing',
      persist=False)
 
     self.error_message = factory.create_textbox('error_message', read_only=True, persist=False)
@@ -736,15 +736,16 @@ Sunderland: The Sunderland machine is commonly used to make a double helical gea
     err_lines = 4
     bad_fields = []
     loops = self.gear_thickness.eval() / gear.pitch_helix.vertical_loop_seperation
-    if loops > 5:
-      bad_fields.append((self.gear_thickness.name, '[WARN] creating a gear where teeth wrap around more than 5 times may lead to Fusion becoming unresponsive. Your settings will result in {0:.3f} wraps.'.format(loops)))
-      err_lines += 4
-    elif loops > 1.5:
+    if loops > 50:
+        if warn_msg: warn_msg += '<br/>'
+        warn_msg += 'Creating a gear where teeth wrap around more than 50 times may lead to Fusion becoming unresponsive while generating. Your settings will result in {0:.3f} wraps. Don\'t worry, it will generate eventually. '.format(loops)
+        warn_lines += 6 
+    elif loops > 10:
       if warn_msg: warn_msg += '<br/>'
-      warn_msg += ('Generating a gear where the teeth wrap around multiple times has poor performance. '
+      warn_msg += ('Generating a gear where the teeth wrap around many times is performance intensive. '
         + 'Your settings will result in {0:.3f} wraps. '
-        + 'Previewing is prevented above 2 wraps but clicking OK will generate the gear.').format(loops)
-      warn_lines += 6
+        + 'Previewing is prevented above 25 wraps but clicking OK will generate the gear.').format(loops)
+      warn_lines += 6 
     if gear.tooth_count > 300:
       bad_fields.append((self.tooth_count.name, '[WARN] creating a gear with over 300 teeth may lead to Fusion becoming unresponsive.'))
       err_lines += 2
@@ -881,8 +882,9 @@ Sunderland: The Sunderland machine is commonly used to make a double helical gea
     if not generate_all_teeth:
       return False
 
+    
     loops = self.gear_thickness.eval() / gear.pitch_helix.vertical_loop_seperation
-    if loops > 2 and is_preview:
+    if loops > 25 and is_preview:
       return False
     if gear.tooth_count > 150 and is_preview:
       return False
@@ -900,118 +902,67 @@ Sunderland: The Sunderland machine is commonly used to make a double helical gea
       'R' if gear.handedness == Handedness.right else 'L',
       math.degrees(gear.helix_angle))
 
-    #NSC         C4: Starts a base feature for the gear 
-    if self.base_feature.value:
+    #---------------------------------------------------
+    # NSC start
+    if self.base_feature.value and self.design.design.designType:
         self.basefeat = component.features.baseFeatures.add()  #NSC
         self.basefeat.startEdit()   #NSC
 
     pitch_helix = gear.pitch_helix
     l = self.gear_thickness.value
 
+    #Creates sketch
     sketch = component.sketches.add(component.xYConstructionPlane)
+    
+    #Names sketch
     sketch.name = 'Gear ({0:.3f} module; {1:.3f} pitch dia)'.format(gear.module, gear.pitch_diameter)
+    
+    #Draws base circle
     sketch.sketchCurves.sketchCircles.addByCenterRadius(fission.Point3D(0,0), gear.root_diameter / 2)
-    root_cylinder = extrude(sketch.profiles.item(0), l)
-    sketch.isVisible = False
-
-    sketch = component.sketches.add(component.xYConstructionPlane)
-    sketch.name = 'Helical Path'
-    sketch.sketchCurves.sketchCircles.addByCenterRadius(fission.Point3D(0,0), gear.pitch_diameter/2).isConstruction = True
-    sketch.sketchCurves.sketchCircles.addByCenterRadius(fission.Point3D(0,0, l), gear.pitch_diameter/2).isConstruction = True
-
-    observed_twist = pitch_helix.t_for(l)  # in radians
-
-    #points = fission.ObjectCollectionFromList(pitch_helix.get_points(0, pitch_helix.t_for(l)))
-    #helix_path = sketch.sketchCurves.sketchFittedSplines.add(points)
-
-    def create_offset_sketch(offset):
-      plane_input = component.constructionPlanes.createInput()
-      plane_input.setByOffset(component.xYConstructionPlane, adsk.core.ValueInput.createByReal(offset))
-      plane = component.constructionPlanes.add(plane_input)
-      return component.sketches.add(plane)
-      
-      
+   
     involute = Involute(gear)
-    (involute_start_profile, rails_through_points) = involute.draw(sketch)
-    involute_profiles = [involute_start_profile]
-    involutes_on_points = pitch_helix.get_points(0, pitch_helix.t_for(l))
-    if abs(observed_twist) > math.radians(18) or len(involutes_on_points) > 3:
-      for i in range(1, len(involutes_on_points) - 1):
-        ip = involutes_on_points[i]
-        s = create_offset_sketch(ip.z)
-        (profile, _) = involute.draw(s, 0, math.atan2(ip.y, ip.x))
-        s.name = 'Tooth Profile'
-        s.isVisible = False
-        involute_profiles.append(profile)
+    
+    #Draws all the teeth
+    for i in range(gear.tooth_count):
+        involute.draw(sketch, 0, (i/gear.tooth_count)*2*math.pi)
+    
+    
+    #Draws the sweep path (Vertical line with length of thickness)
+    line1 = sketch.sketchCurves.sketchLines.addByTwoPoints(adsk.core.Point3D.create(0, 0, 0), adsk.core.Point3D.create(0, 0, l))
+    
+    #Turns that line into a path
+    path = component.features.createPath(line1)
+    
+    #Creates sweep    
+    
+    profs = adsk.core.ObjectCollection.create()
+    
+    for prof in sketch.profiles:
+        profs.add(prof)
+    
+    sweepInput = component.features.sweepFeatures.createInput(profs, path, adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
+    sweepInput.twistAngle = adsk.core.ValueInput.createByString(str(pitch_helix.t_for(l))+" rad")
+    sweepFeature = component.features.sweepFeatures.add(sweepInput)
+    
 
-    s = create_offset_sketch(l)
-    (involute_end_profile, _) = involute.draw(s, 0, observed_twist % (2 * math.pi))
-    s.name = 'Tooth Profile'
-    s.isVisible = False
-    involute_profiles.append(involute_end_profile)
+    if self.base_feature.value and self.design.design.designType:
+        self.basefeat.finishEdit()
+        timelineGroups = self.design.design.timeline.timelineGroups
+        endIndex = self.basefeat.timelineObject.index
+        timelineGroup = timelineGroups.add(endIndex-1, endIndex)
+        timelineGroup.name = component.name
+    else:
+        if self.design.design.designType:
+            timelineGroups = self.design.design.timeline.timelineGroups
+            startIndex = component.features[0].timelineObject.index-2     # <--   Not good code but works
+            endIndex = sweepFeature.timelineObject.index
+            timelineGroup = timelineGroups.add(startIndex, endIndex)
+            timelineGroup.name = component.name
 
-    def draw_rail(point):
-      rad = point.distanceTo(fission.Point3D(0,0,0))
-      angle = math.atan2(point.y, point.x)
-      rail_helix = pitch_helix.project(rad)
-      rail_helix.rotation = angle
-      points = fission.ObjectCollectionFromList(rail_helix.get_points(0, rail_helix.t_for(l), bookends=4))
-      path = sketch.sketchCurves.sketchFittedSplines.add(points)
-      return path
-
-    loftInput = component.features.loftFeatures.createInput(adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
-    for i, profile in enumerate(involute_profiles):
-      loftInput.loftSections.add(profile)
-    #loftInput.centerLineOrRails.addCenterLine(helix_path)
-    for rp in rails_through_points:
-      rail = draw_rail(rp)
-      loftInput.centerLineOrRails.addRail(rail)
-    tooth_body = component.features.loftFeatures.add(loftInput).bodies[0]
-    tooth_body.name = "Tooth"
-
-    if generate_all_teeth:
-       # Circular Array the Teeth
-      circularPatterns = component.features.circularPatternFeatures
-      entities = adsk.core.ObjectCollection.create()
-      entities.add(tooth_body)
-      circularPatternInput = circularPatterns.createInput(entities, component.zConstructionAxis)
-      circularPatternInput.quantity = adsk.core.ValueInput.createByString(str(gear.tooth_count))
-      teeth_bodies = circularPatterns.add(circularPatternInput).bodies
-
-      # Finally combine everything into the Core
-      toolBodies = adsk.core.ObjectCollection.create()
-      toolBodies.add(tooth_body)
-      for body in teeth_bodies:
-          toolBodies.add(body)
-      combineInput = component.features.combineFeatures.createInput(root_cylinder, toolBodies)
-      combineFeature = component.features.combineFeatures.add(combineInput) #NSC C1
-      if combineFeature:    #NSC C3
-          root_cylinder = combineFeature.bodies[0] #NSC C1, C3 
-      
-      #---------------------------------------------------
-      # NSC start   C1: Creates timeline group
-      
-      # Group everything used to create the gear in the timeline.
-      if self.base_feature.value:
-          self.basefeat.finishEdit()
-          
-          timelineGroups = self.design.design.timeline.timelineGroups
-          endIndex = self.basefeat.timelineObject.index
-          timelineGroup = timelineGroups.add(endIndex-1, endIndex)
-          timelineGroup.name = component.name
-      else:
-          timelineGroups = self.design.design.timeline.timelineGroups
-          startIndex = component.features[0].timelineObject.index-2     # <--   Not good code but works
-          endIndex = combineFeature.timelineObject.index
-          timelineGroup = timelineGroups.add(startIndex, endIndex)
-          timelineGroup.name = component.name
-      
-      # NSC END
-      #---------------------------------------------------
       
     sketch.isVisible = False
 
-    return (gear, component, sketch, root_cylinder, tooth_body)
+    return (gear, component, sketch)
 
 
 def run(context):
