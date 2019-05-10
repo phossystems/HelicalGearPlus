@@ -28,7 +28,7 @@ This change leads to about 10x to 50x faster gear generation while generating mo
 * [x] Setup version controll
 * [x] Group features in Timeline to take up less space
 * [x] Change persistent inputs so they won't reset after undo
-* [x ] Fix Errors in direct modeling mode (again)
+* [x] Fix Errors in direct modeling mode (again)
 * [x] Add "Generate as Base feature" opting for better performance
 * [x] Switch from Loft to Sweep
 <br>
