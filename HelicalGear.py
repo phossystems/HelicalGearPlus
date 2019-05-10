@@ -87,7 +87,6 @@ class Involute(object):
     if curve2Angle < curve1Angle:
       curve2Angle += math.pi * 2
 
-    sketch.isComputeDeferred = True
     # Create and load an object collection with the points.
     # Add the involute points for the second spline to an ObjectCollection.
     pointSet1 = adsk.core.ObjectCollection.create()
@@ -164,11 +163,7 @@ class Involute(object):
       sketch.sketchCurves.sketchLines.addByTwoPoints(origin_point, spline1.startSketchPoint)
       sketch.sketchCurves.sketchLines.addByTwoPoints(origin_point, spline2.startSketchPoint)
 
-    sketch.isComputeDeferred = False
-    key_points.append(root_arc.startSketchPoint.geometry)
-    key_points.append(root_arc.endSketchPoint.geometry)
-
-    return (sketch.profiles.item(sketch.profiles.count - 1), key_points)
+    
 
   # Calculate points along an involute curve.
   def _involute_point(self, baseCircleRadius, distFromCenterToInvolutePoint, z_shift):
@@ -917,16 +912,22 @@ Sunderland: The Sunderland machine is commonly used to make a double helical gea
     #Names sketch
     sketch.name = 'Gear ({0:.3f} module; {1:.3f} pitch dia)'.format(gear.module, gear.pitch_diameter)
     
-    #Draws base circle
-    sketch.sketchCurves.sketchCircles.addByCenterRadius(fission.Point3D(0,0), gear.root_diameter / 2)
-   
+    
     involute = Involute(gear)
     
+    
+    sketch.isComputeDeferred=True    
     #Draws all the teeth
     for i in range(gear.tooth_count):
-        involute.draw(sketch, 0, (i/gear.tooth_count)*2*math.pi)
+       involute.draw(sketch, 0, (i/gear.tooth_count)*2*math.pi)
+    
+    sketch.isComputeDeferred=False
+        
     
     
+    #Draws base circle
+    sketch.sketchCurves.sketchCircles.addByCenterRadius(fission.Point3D(0,0), gear.root_diameter / 2)
+           
     #Draws the sweep path (Vertical line with length of thickness)
     line1 = sketch.sketchCurves.sketchLines.addByTwoPoints(adsk.core.Point3D.create(0, 0, 0), adsk.core.Point3D.create(0, 0, l))
     
