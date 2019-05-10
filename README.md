@@ -18,6 +18,9 @@ The new system just stores values in a variable. Persistence is lost if Fusion36
 ## Base feature Mode
 With the base feature option enabeled, gears are generated inside a base feature, meaning that no design history is being captured for the gear and it does not need to be recalculated every time something in the timeline changes.
 This significantly improves perfermance for files containing complex gears and also seems to spead up generation a bit.
+
+## Sweep-based gear generation
+This change leads to about 10x to 50x faster gear generation while generating more accurate gears and makes high twist gears (like screws) possible. Any gear now only uses one sketch and one sweep feature instead of hundreds of sketches.
 <br>
 <br>
 
@@ -25,8 +28,9 @@ This significantly improves perfermance for files containing complex gears and a
 * [x] Setup version controll
 * [x] Group features in Timeline to take up less space
 * [x] Change persistent inputs so they won't reset after undo
-* [ ] Fix Errors in direct modeling mode (again)
-* [X] Add "Generate as Base feature" opting for better performance
+* [x ] Fix Errors in direct modeling mode (again)
+* [x] Add "Generate as Base feature" opting for better performance
+* [x] Switch from Loft to Sweep
 <br>
 <br>
 
