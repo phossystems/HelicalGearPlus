@@ -22,6 +22,8 @@ This significantly improves perfermance for files containing complex gears and a
 ## Sweep-based gear generation
 This change leads to about 10x to 50x faster gear generation while generating more accurate gears and makes high twist gears (like screws) possible. Any gear now only uses one sketch and one sweep feature instead of hundreds of sketches.
 <br>
+![performance](https://ortusresearch.com/wp-content/uploads/2019/05/perforrmance.jpg)
+<br>
 <br>
 
 # TO-DO
