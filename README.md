@@ -24,6 +24,7 @@ This change leads to about 10x to 50x faster gear generation while generating mo
 <br>
 <br>
 ![performance](https://ortusresearch.com/wp-content/uploads/2019/05/perforrmance.jpg)
+(Time in ms)
 <br>
 
 # TO-DO
