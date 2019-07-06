@@ -1,4 +1,5 @@
-# Author-Ross Korsky 2016-2017
+# Original Author-Ross Korsky 2016-2017
+# Modified by Nico Schlueter
 #
 # Released under the MIT license. See License.txt for full license information.
 #
@@ -595,7 +596,7 @@ class HelicalGearAddin(fission.CommandBase):
     self.design = fission.DesignUtils()
     self.last_gear_stat_text = ''
     
-    self.pers = {'Pressure Angle': 0.3490658503988659, 'Backlash': 0.0, 'Gear Thickness': 1.0, 'Teeth': 16, 'Gear Standard': 'Normal System', 'Handedness': 'Right', 'Helix Angle': 0.5235987755982988, 'Module': 0.3, 'Base Feature': False}  #NSC C2 Initial persistence Dict
+    self.pers = {'Pressure Angle': 0.3490658503988659, 'Backlash': 0.0, 'Gear Thickness': 1.0, 'Teeth': 16, 'Gear Standard': 'Normal System', 'Handedness': 'Right', 'Helix Angle': 0.5235987755982988, 'Module': 0.3, 'Base Feature': False, 'Herringbone' : False}  #NSC C2 Initial persistence Dict
 
   @property
   def is_repeatable(self):
@@ -678,26 +679,31 @@ Sunderland: The Sunderland machine is commonly used to make a double helical gea
     self.backlash = factory.addValueInput(
       'backlash',
       'Backlash',
-      str(self.pers['Backlash']), 'mm', persist=False,    #NSC C2
+      str(self.pers['Backlash']), 'mm', persist=False,
       description='[experimental] a positive value here causes each tooth to be slightly narrower than the ideal tooth. In the real world having a perfect tooth is not often desired, it is better to build in a little backlash to reduce friction, allow room for lubricant between teeth, and to prevent jamming.\n\nBacklash is allowed to also be negative which has no real world application I\'m aware of but may be useful for compensating for undersized teeth which were 3D printed, etc.\n\nThe backlash value is split between this gear and its theoretical mate.')
     self.gear_thickness = factory.addValueInput(
       'gear_thickness',
       'Gear Thickness',
-      self.pers['Gear Thickness'], 'mm', persist=False,    #NSC C2
+      self.pers['Gear Thickness'], 'mm', persist=False,
       on_validate=lambda i: i.eval() > 0,
       description='How thick you want the gear to be. CAUTION: making a gear really thick can cause some serious performance issues. If you wish to make a gear where the teeth wrap around multiple times it is recommend to see the "length per revolution" field in the "Gear Parameters" readout and use that value for your gear thickness then copy/rectangular pattern the gear body to reach your desired length. This is something which may be addressed in a future release.')
+    self.herringbone = factory.create_checkbox(
+      'herringbone',
+      'Herringbone',
+      self.pers["Herringbone"],
+      tooltip='Generate as herringbone gear when checked.',
+      persist=False)
     self.full_preview = factory.create_checkbox(
       'full_preview',
       'Preview',
       False,
       tooltip='Generate a full preview when checked.',
       persist=False)
-      
     self.base_feature = factory.create_checkbox(
      'base_feature',
      'Base Feature',
      self.pers['Base Feature'],
-     tooltip='Generates as a Base feature when checked. Slightly better performance when recomputing',
+     tooltip='Generates as a base feature when checked. Slightly better performance when recomputing.',
      persist=False)
 
     self.error_message = factory.create_textbox('error_message', read_only=True, persist=False)
@@ -814,7 +820,7 @@ Sunderland: The Sunderland machine is commonly used to make a double helical gea
     #Preservers values to dictionary
     self.pers[self.gear_standard.name] = self.gear_standard.selectedItem.name
     self.pers[self.handedness.name] = self.handedness.selectedItem.name
-    for i in [self.helix_angle, self.pressure_angle, self.module, self.tooth_count, self.backlash, self.gear_thickness, self.base_feature]:    #NSC C2
+    for i in [self.helix_angle, self.pressure_angle, self.module, self.tooth_count, self.backlash, self.gear_thickness, self.base_feature, self.herringbone]:    #NSC C2
         self.pers[i.name] = i.value                                                                                         #NSC C2
     
     #NSC end
@@ -884,13 +890,6 @@ Sunderland: The Sunderland machine is commonly used to make a double helical gea
     if gear.tooth_count > 150 and is_preview:
       return False
 
-    def extrude(profile, thickness):
-      extrudes = component.features.extrudeFeatures
-      extInput = extrudes.createInput(profile, adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
-      distance = adsk.core.ValueInput.createByReal(thickness)
-      extInput.setDistanceExtent(False, distance)
-      return extrudes.add(extInput).bodies[0]
-
     component = self.design.CreateNewComponent()
     component.name = 'Healical Gear ({0}{1}@{2:.2f})'.format(
       gear.tooth_count,
@@ -904,7 +903,8 @@ Sunderland: The Sunderland machine is commonly used to make a double helical gea
         self.basefeat.startEdit()   #NSC
 
     pitch_helix = gear.pitch_helix
-    l = self.gear_thickness.value
+    
+    l = (self.gear_thickness.value/2) if self.herringbone.value else self.gear_thickness.value
 
     #Creates sketch
     sketch = component.sketches.add(component.xYConstructionPlane)
@@ -932,7 +932,13 @@ Sunderland: The Sunderland machine is commonly used to make a double helical gea
     line1 = sketch.sketchCurves.sketchLines.addByTwoPoints(adsk.core.Point3D.create(0, 0, 0), adsk.core.Point3D.create(0, 0, l))
     
     #Turns that line into a path
-    path = component.features.createPath(line1)
+    path1 = component.features.createPath(line1)
+    
+    if(self.herringbone.value):
+        line2 = sketch.sketchCurves.sketchLines.addByTwoPoints(adsk.core.Point3D.create(0,0,0), adsk.core.Point3D.create(0,0,-l))
+        path2 = component.features.createPath(line2)
+    
+    
     
     #Creates sweep    
     
@@ -941,12 +947,20 @@ Sunderland: The Sunderland machine is commonly used to make a double helical gea
     for prof in sketch.profiles:
         profs.add(prof)
     
-    sweepInput = component.features.sweepFeatures.createInput(profs, path, adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
+    sweepInput = component.features.sweepFeatures.createInput(profs, path1, adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
     sweepInput.twistAngle = adsk.core.ValueInput.createByString(str(pitch_helix.t_for(l))+" rad")
     sweepFeature = component.features.sweepFeatures.add(sweepInput)
     
+    if(self.herringbone.value):
+        sweepInput2 = component.features.sweepFeatures.createInput(profs, path2, adsk.fusion.FeatureOperations.JoinFeatureOperation)
+        sweepInput2.twistAngle = adsk.core.ValueInput.createByString(str(-pitch_helix.t_for(l))+" rad")
+        sweepFeature2 = component.features.sweepFeatures.add(sweepInput2)
+    
+    print(self.base_feature.value)
+    print(self.design.design.designType)
+    
 
-    if self.base_feature.value and self.design.design.designType:
+    if self.base_feature.value:
         self.basefeat.finishEdit()
         timelineGroups = self.design.design.timeline.timelineGroups
         endIndex = self.basefeat.timelineObject.index
@@ -956,7 +970,7 @@ Sunderland: The Sunderland machine is commonly used to make a double helical gea
         if self.design.design.designType:
             timelineGroups = self.design.design.timeline.timelineGroups
             startIndex = component.features[0].timelineObject.index-2     # <--   Not good code but works
-            endIndex = sweepFeature.timelineObject.index
+            endIndex = sweepFeature.timelineObject.index+(1 if self.herringbone.value else 0)
             timelineGroup = timelineGroups.add(startIndex, endIndex)
             timelineGroup.name = component.name
 
