@@ -53,6 +53,14 @@ class Involute(object):
             involutePoints.append(newPoint)
             involuteIntersectionRadius = involuteIntersectionRadius + radiusStep
 
+        if self.gear.inner_gear:
+            clearance = self.gear.inner_gear_clearance * self.gear.normal_module
+            if clearance != 0:
+                displacement = involutePoints[-2].vectorTo(involutePoints[-1])
+                displacement.normalize()
+                displacement.scaleBy(clearance)
+                involutePoints[-1].translateBy(displacement)
+
         # Determine the angle between the X axis and a line between the origin of the curve
         # and the intersection point between the involute and the pitch diameter circle.
         pitchInvolutePoint = self._involute_point(self.gear.base_diameter / 2.0, self.gear.pitch_diameter / 2.0,
@@ -252,6 +260,14 @@ class HelicalGear(object):
         return self.__circular_pitch
 
     @property
+    def inner_gear(self):
+        return self.__inner_gear
+
+    @property
+    def inner_gear_clearance(self):
+        return self.__inner_gear_clearance
+
+    @property
     def is_undercut_requried(self):
         return self.virtual_teeth < self.critcal_virtual_tooth_count
 
@@ -375,7 +391,8 @@ class HelicalGear(object):
         return str
 
     @staticmethod
-    def create_in_normal_system(tooth_count, normal_module, normal_pressure_angle, helix_angle, handedness, backlash=0):
+    def create_in_normal_system(tooth_count, normal_module, normal_pressure_angle, helix_angle, handedness, backlash=0,
+                                inner_gear=False, inner_gear_clearance=0.25):
         tooth_count = tooth_count if tooth_count > 0 else 1
         normal_module = normal_module if normal_module > 0 else 1e-10
         normal_pressure_angle = normal_pressure_angle if 0 <= normal_pressure_angle < math.radians(90) else 0
@@ -389,6 +406,9 @@ class HelicalGear(object):
 
         gear.__normal_module = normal_module
         gear.__normal_pressure_angle = normal_pressure_angle
+
+        gear.__inner_gear = inner_gear
+        gear.__inner_gear_clearance = inner_gear_clearance
 
         gear.__normal_circular_pitch = gear.__normal_module * math.pi
         cos_helix_angle = math.cos(helix_angle)
@@ -408,7 +428,8 @@ class HelicalGear(object):
         return gear
 
     @staticmethod
-    def create_in_radial_system(tooth_count, radial_module, radial_pressure_angle, helix_angle, handedness, backlash=0):
+    def create_in_radial_system(tooth_count, radial_module, radial_pressure_angle, helix_angle, handedness, backlash=0,
+                                inner_gear=False, inner_gear_clearance=0.25):
         tooth_count = tooth_count if tooth_count > 0 else 1
         radial_module = radial_module if radial_module > 0 else 1e-10
         radial_pressure_angle = radial_pressure_angle if 0 <= radial_pressure_angle < math.radians(90) else 0
@@ -419,6 +440,9 @@ class HelicalGear(object):
         gear.__helix_angle = helix_angle
         gear.__handedness = handedness
         gear.__tooth_count = tooth_count
+
+        gear.__inner_gear = inner_gear
+        gear.__inner_gear_clearance = inner_gear_clearance
 
         gear.__normal_module = radial_module * math.cos(gear.__helix_angle)
         gear.__normal_pressure_angle = math.atan(math.tan(radial_pressure_angle) * math.cos(gear.__helix_angle))
@@ -441,7 +465,8 @@ class HelicalGear(object):
         return gear
 
     @staticmethod
-    def create_sunderland(tooth_count, radial_module, handedness, backlash=0):
+    def create_sunderland(tooth_count, radial_module, handedness, backlash=0, inner_gear=False,
+                          inner_gear_clearance=0.25):
         """The Sunderland machine is commonly used to make double helical, or herringbone, gears.
 
         The (radial) pressure angle is fixed at 20 degrees and the helix angle is fixed at 22.5 degrees and the tooth
@@ -456,6 +481,9 @@ class HelicalGear(object):
         gear.__helix_angle = helix_angle
         gear.__handedness = handedness
         gear.__tooth_count = tooth_count
+
+        gear.__inner_gear = inner_gear
+        gear.__inner_gear_clearance = inner_gear_clearance
 
         gear.__normal_module = radial_module * math.cos(gear.__helix_angle)
         gear.__normal_pressure_angle = math.atan(math.tan(radial_pressure_angle) * math.cos(gear.__helix_angle))
@@ -619,7 +647,8 @@ class HelicalGearAddin(fission.CommandBase):
             'Module': 0.3,
             'Base Feature': False,
             'Herringbone': False,
-            'Inner': False}  # NSC C2 Initial persistence Dict
+            'Inner Gear': False,
+            'Inner Gear Clearance': 0.25}  # NSC C2 Initial persistence Dict
 
     @property
     def is_repeatable(self):
@@ -712,12 +741,19 @@ Sunderland: The Sunderland machine is commonly used to make a double helical gea
             self.pers['Gear Thickness'], 'mm', persist=False,
             on_validate=lambda i: i.eval() > 0,
             description='How thick you want the gear to be. CAUTION: making a gear really thick can cause some serious performance issues. If you wish to make a gear where the teeth wrap around multiple times it is recommend to see the "length per revolution" field in the "Gear Parameters" readout and use that value for your gear thickness then copy/rectangular pattern the gear body to reach your desired length. This is something which may be addressed in a future release.')
-        self.inner = factory.create_checkbox(
-            'inner',
-            'Inner',
-            self.pers["Inner"],
+        self.inner_gear = factory.create_checkbox(
+            'inner_gear',
+            'Inner Gear',
+            self.pers["Inner Gear"],
+            on_change=self.inner_gear_changed,
             tooltip='Generate an inner Gear.',
             persist=False)
+        self.inner_gear_clearance = factory.addValueInput(
+            'inner_gear_clearance',
+            'Inner Gear Clearance',
+            self.pers["Inner Gear Clearance"], '', persist=False,
+            on_validate=lambda i: not self.inner_gear.eval() or i.eval() > 0,
+            description='Clearance for the inner Gear.')
         self.herringbone = factory.create_checkbox(
             'herringbone',
             'Herringbone',
@@ -754,6 +790,7 @@ Sunderland: The Sunderland machine is commonly used to make a double helical gea
         # factory.additional_validator = self.on_validate
         # Trigger any change events we have setup - the values may have been restored from saved state
         self.gear_standard_changed(self.gear_standard)
+        self.inner_gear_changed(self.inner_gear)
         self.update_warnings()
 
     def __on_input_changed(self, _a) -> 'input_changed':
@@ -852,6 +889,10 @@ Sunderland: The Sunderland machine is commonly used to make a double helical gea
             self.pressure_angle.isEnabled = True
             self.helix_angle.isEnabled = True
 
+    def inner_gear_changed(self, sender):
+        choice = sender.eval()
+        self.inner_gear_clearance.isVisible = choice
+
     def on_execute(self, args) -> 'execute':
         self.generate_gear(True, False)
 
@@ -898,7 +939,9 @@ Sunderland: The Sunderland machine is commonly used to make a double helical gea
                 self.pressure_angle.eval(),
                 self.helix_angle.eval(),
                 self.handedness.eval(),
-                self.backlash.eval())
+                self.backlash.eval(),
+                self.inner_gear.eval(),
+                self.inner_gear_clearance.eval())
         elif gear_standard == GearStandards.radial_system:
             gear = HelicalGear.create_in_radial_system(
                 self.tooth_count.eval(),
@@ -906,19 +949,23 @@ Sunderland: The Sunderland machine is commonly used to make a double helical gea
                 self.pressure_angle.eval(),
                 self.helix_angle.eval(),
                 self.handedness.eval(),
-                self.backlash.eval())
+                self.backlash.eval(),
+                self.inner_gear.eval(),
+                self.inner_gear_clearance.eval())
         elif gear_standard == GearStandards.sunderland:
             gear = HelicalGear.create_sunderland(
                 self.tooth_count.eval(),
                 self.module.eval(),
                 self.handedness.eval(),
-                self.backlash.eval())
+                self.backlash.eval(),
+                self.inner_gear.eval(),
+                self.inner_gear_clearance.eval())
         else:
             assert False, 'Gear standard not yet supported.'
 
         gear_stat_text = str(gear)
 
-        if self.last_gear_stat_text != gear_stat_text:
+        if self.last_gear_stat_text != gear_stat_text or self.gear_stats.formattedText == '':
             self.last_gear_stat_text = gear_stat_text
             self.gear_stats.numRows = len(gear_stat_text.split('\n')) + 1
             self.gear_stats.formattedText = 'Stats:<pre>' + gear_stat_text + '</pre>'
