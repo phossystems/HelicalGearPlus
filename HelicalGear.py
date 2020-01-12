@@ -931,10 +931,11 @@ Sunderland: The Sunderland machine is commonly used to make a double helical gea
             return False
 
         component = self.design.CreateNewComponent()
-        component.name = 'Healical Gear ({0}{1}@{2:.2f})'.format(
+        component.name = 'Healical Gear ({0}{1}@{2:.2f} m={3})'.format(
             gear.tooth_count,
             'R' if gear.handedness == Handedness.right else 'L',
-            math.degrees(gear.helix_angle))
+            math.degrees(gear.helix_angle),
+            round(gear.normal_module * 10, 4))
 
         # ---------------------------------------------------
         # NSC start
