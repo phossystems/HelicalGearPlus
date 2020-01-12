@@ -618,7 +618,8 @@ class HelicalGearAddin(fission.CommandBase):
             'Helix Angle': 0.5235987755982988,
             'Module': 0.3,
             'Base Feature': False,
-            'Herringbone': False}  # NSC C2 Initial persistence Dict
+            'Herringbone': False,
+            'Inner': False}  # NSC C2 Initial persistence Dict
 
     @property
     def is_repeatable(self):
@@ -711,6 +712,12 @@ Sunderland: The Sunderland machine is commonly used to make a double helical gea
             self.pers['Gear Thickness'], 'mm', persist=False,
             on_validate=lambda i: i.eval() > 0,
             description='How thick you want the gear to be. CAUTION: making a gear really thick can cause some serious performance issues. If you wish to make a gear where the teeth wrap around multiple times it is recommend to see the "length per revolution" field in the "Gear Parameters" readout and use that value for your gear thickness then copy/rectangular pattern the gear body to reach your desired length. This is something which may be addressed in a future release.')
+        self.inner = factory.create_checkbox(
+            'inner',
+            'Inner',
+            self.pers["Inner"],
+            tooltip='Generate an inner Gear.',
+            persist=False)
         self.herringbone = factory.create_checkbox(
             'herringbone',
             'Herringbone',
