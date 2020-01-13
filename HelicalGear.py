@@ -914,7 +914,7 @@ Sunderland: The Sunderland machine is commonly used to make a double helical gea
         if self.last_gear_stat_text != gear_stat_text:
             self.last_gear_stat_text = gear_stat_text
             self.gear_stats.numRows = len(gear_stat_text.split('\n')) + 1
-            self.gear_stats.formattedText = 'Stats:<pre>' + gear_stat_text + '</pre>'
+            self.gear_stats.formattedText = '<pre>' + gear_stat_text + '</pre>'
         return gear
 
     def generate_gear(self, generate_all_teeth, is_preview):
