@@ -652,6 +652,7 @@ class HelicalGearAddin(fission.CommandBase):
         self.design = fission.DesignUtils()
         self.last_gear_stat_text = ''
 
+        # Initial persistence Dict
         self.pers = {
             'pressure_angle': 0.3490658503988659,
             'backlash': 0.0,
@@ -665,7 +666,7 @@ class HelicalGearAddin(fission.CommandBase):
             'herringbone': False,
             'inner_gear': False,
             'inner_gear_clearance': 0.25,
-            'inner_gear_outer_diameter': 6.5}  # NSC C2 Initial persistence Dict
+            'inner_gear_outer_diameter': 6.5}
 
     @property
     def is_repeatable(self):
@@ -699,7 +700,7 @@ class HelicalGearAddin(fission.CommandBase):
             'Gear Standard',
             items=['Normal System', 'Radial System', 'Sunderland'],
             values=[GearStandards.normal_system, GearStandards.radial_system, GearStandards.sunderland],
-            default=self.pers['gear_standard'], persist=False,  # NSC C2
+            default=self.pers['gear_standard'], persist=False,
             on_change=self.gear_standard_changed,
             help_image='resources/captions/NormalVsRadial.png',
             description="""The true involute pitch and involute geometry of a helical gear is in the plane of rotation (Radial System). However, because of the nature of tooth generation with a rack-type hob, a single tool can generate helical gears at all helix angles as well as standard spur gears. However, this means the normal pitch is the common denominator, and usually is taken as a standard value (e.g. 14.5 deg or most commonly 20 deg). In other words if you plan to have your gear manufactured with a standard hob you will likely want to use the "Normal System" and a pressure Angle of 20 degrees.
@@ -714,14 +715,14 @@ Sunderland: The Sunderland machine is commonly used to make a double helical gea
             'Handedness',
             items=['Left', 'Right'],
             values=[Handedness.left, Handedness.right],
-            default=self.pers['handedness'], persist=False,  # NSC C2
+            default=self.pers['handedness'], persist=False,
             help_image='resources/captions/Handedness.png',
             description='Direction the tooth appears to lean when placed flat on a table. Helical gears of opposite hand operate on parallel shafts. Helical gears of the same hand operate at right angles.')
         # Both gears of a meshed pair must have the same helix angle and pressure able. \nHowever, the handedness (helix direction) must be opposite.
         self.helix_angle = factory.addValueInput(
             'helix_angle',
             'Helix Angle',
-            self.pers['helix_angle'], 'deg', persist=False,  # NSC C2
+            self.pers['helix_angle'], 'deg', persist=False,
             on_validate=lambda i: self.gear_standard.eval() == GearStandards.sunderland or (
                     0 <= i.eval() < math.radians(88.0001)),
             help_image='resources/captions/HelixAngle.png',
@@ -729,23 +730,23 @@ Sunderland: The Sunderland machine is commonly used to make a double helical gea
         self.pressure_angle = factory.addValueInput(
             'pressure_angle',
             'Pressure Angle',
-            self.pers['pressure_angle'], 'deg', persist=False,  # NSC C2
+            self.pers['pressure_angle'], 'deg', persist=False,
             on_validate=lambda i: self.gear_standard.eval() == GearStandards.sunderland or (
                     0 <= i.eval() <= math.radians(70.0001)),
             description='The most common value for pressure angle is 20°, the second most common is 14.5°. The pressure angle defines the angle of the line of action which is a common tangent between the two base circles of a pair of gears. The short of it is this: leave this value at 20 degrees until you have reason to do otherwise - but know that any pair of gears MUST have the same pressure angle.')
         self.module = factory.addValueInput(
             'module',
             'Module',
-            self.pers['module'], 'mm', persist=False,  # NSC C2
+            self.pers['module'], 'mm', persist=False,
             on_validate=lambda i: i.eval() > 0,
             description='The module is the length of pitch diameter per tooth. Therefore m = d / z; where m is module, d is the pitch diameter of the gear, and z is the number of teeth.')
 
         self.tooth_count = factory.create_int_spinner(
             'tooth_count',
             'Teeth',
-            self.pers['tooth_count'],  # NSC C2
+            self.pers['tooth_count'],
             min=1,
-            max=10000, persist=False,  # NSC C2
+            max=10000, persist=False,
             description='Number of teeth the gear has. The higher the helix angle, and to some extent pressure angle, are the fewer teeth the gear needs to have to avoid undercutting. It is possible to create a Helical gear with a single tooth given a high enough Helix Angle.\n\nCAUTION: due to performance reasons, do not make gears with several hundred teeth.')
         self.backlash = factory.addValueInput(
             'backlash',
@@ -922,9 +923,6 @@ Sunderland: The Sunderland machine is commonly used to make a double helical gea
     def on_execute(self, args) -> 'execute':
         self.generate_gear(True, False)
 
-        # ---------------------------------------------------
-        # NSC start   C2: Improved value persistence
-
         # Preservers values to dictionary
         self.pers[self.gear_standard.id] = self.gear_standard.selectedItem.name
         self.pers[self.handedness.id] = self.handedness.selectedItem.name
@@ -938,11 +936,9 @@ Sunderland: The Sunderland machine is commonly used to make a double helical gea
                   self.herringbone,
                   self.inner_gear,
                   self.inner_gear_clearance,
-                  self.inner_gear_outer_diameter]:  # NSC C2
-            self.pers[i.id] = i.value  # NSC C2
+                  self.inner_gear_outer_diameter]:
+            self.pers[i.id] = i.value
 
-        # NSC end
-        # ---------------------------------------------------
 
     def on_preview(self, args) -> 'preview':
         ret = self.generate_gear(self.full_preview.value, True)
@@ -1023,11 +1019,10 @@ Sunderland: The Sunderland machine is commonly used to make a double helical gea
             math.degrees(gear.helix_angle),
             round(gear.normal_module * 10, 4))
 
-        # ---------------------------------------------------
-        # NSC start
+        
         if self.base_feature.value and self.design.design.designType:
-            self.basefeat = component.features.baseFeatures.add()  # NSC
-            self.basefeat.startEdit()  # NSC
+            self.basefeat = component.features.baseFeatures.add()
+            self.basefeat.startEdit()
 
         pitch_helix = gear.pitch_helix
 
