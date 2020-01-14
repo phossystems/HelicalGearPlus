@@ -5,7 +5,17 @@ His version can be downloaded [here](https://apps.autodesk.com/FUSION/en/Detail/
 <br>
 <br>
 
+<br>
+![gears](https://user-images.githubusercontent.com/30301307/72372203-3bc02100-3706-11ea-8fb8-4b80ad90758a.jpg)
+<br>
+
 # Changes
+
+## Internal gear support
+Internal gears are now supported. 
+
+## Sweep-based gear generation
+This change leads to about 10x to 50x faster gear generation while generating more accurate gears and makes high twist gears (like screws) possible. Any gear now only uses one sketch and one sweep feature instead of hundreds of sketches.
 
 ## Timeline Grouping
 This Add-In may generate hundreds of features in order to create some gears.
@@ -18,22 +28,6 @@ The new system just stores values in a variable. Persistence is lost if Fusion36
 ## Base feature Mode
 With the base feature option enabeled, gears are generated inside a base feature, meaning that no design history is being captured for the gear and it does not need to be recalculated every time something in the timeline changes.
 This significantly improves perfermance for files containing complex gears and also seems to spead up generation a bit.
-
-## Sweep-based gear generation
-This change leads to about 10x to 50x faster gear generation while generating more accurate gears and makes high twist gears (like screws) possible. Any gear now only uses one sketch and one sweep feature instead of hundreds of sketches.
-<br>
-<br>
-![performance](https://ortusresearch.com/wp-content/uploads/2019/05/performance.jpg)
-<br>
-
-# TO-DO
-* [x] Setup version controll
-* [x] Group features in Timeline to take up less space
-* [x] Change persistent inputs so they won't reset after undo
-* [x] Fix Errors in direct modeling mode (again)
-* [x] Add "Generate as Base feature" opting for better performance
-* [x] Switch from Loft to Sweep
-<br>
 <br>
 
 # Installation
