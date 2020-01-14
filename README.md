@@ -1,7 +1,6 @@
 # HelicalGear
 
 This is a "Branch" of Ross Korsky's Helical Gear Generator Add-in for Autodesk's Fusion 360.
-His version can be downloaded [here](https://apps.autodesk.com/FUSION/en/Detail/Index?id=9029586664984391977&os=Mac&appLang=en).
 
 <br>
 
