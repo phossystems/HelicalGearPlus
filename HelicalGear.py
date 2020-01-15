@@ -776,25 +776,25 @@ Sunderland: The Sunderland machine is commonly used to make a double helical gea
             'inner_gear_outer_diameter',
             'Outer Diameter',
             self.pers["inner_gear_outer_diameter"], 'mm', persist=False,
-            on_validate=lambda i: not self.inner_gear.eval() or i.eval() > 0,
-            description='Outer Diameter for the inner Gear.')
+            on_validate=lambda i: not self.inner_gear.eval() or i.eval() >= 0,
+            description='Outer Diameter for the inner Gear. Set to 0 to apply inner gear parameters to an outer gear.')
         self.herringbone = factory.create_checkbox(
             'herringbone',
             'Herringbone',
             self.pers["herringbone"],
             tooltip='Generate as herringbone gear when checked.',
             persist=False)
-        self.full_preview = factory.create_checkbox(
-            'full_preview',
-            'Preview',
-            False,
-            tooltip='Generate a full preview when checked.',
-            persist=False)
         self.base_feature = factory.create_checkbox(
             'base_feature',
             'Base Feature',
             self.pers['base_feature'],
             tooltip='Generates as a base feature when checked. Slightly better performance when recomputing.',
+            persist=False)
+        self.full_preview = factory.create_checkbox(
+            'full_preview',
+            'Preview',
+            False,
+            tooltip='Generate a full preview when checked.',
             persist=False)
 
         self.error_message = factory.create_textbox('error_message', read_only=True, persist=False)
@@ -880,7 +880,7 @@ Sunderland: The Sunderland machine is commonly used to make a double helical gea
             bad_fields.append((self.inner_gear_clearance.name, 'must be positive.'))
             err_lines += 1
         if not self.inner_gear_outer_diameter.validate():
-            bad_fields.append((self.inner_gear_outer_diameter.name, 'must be greater than 0.'))
+            bad_fields.append((self.inner_gear_outer_diameter.name, 'must be positive.'))
             err_lines += 1
 
         if not bad_fields and not gear.is_valid:
@@ -1074,22 +1074,35 @@ Sunderland: The Sunderland machine is commonly used to make a double helical gea
 
         profs = adsk.core.ObjectCollection.create()
 
-        if gear.inner_gear and gear.inner_gear_outer_diameter != 0:
+        for prof in sketch.profiles:
+            profs.add(prof)
+
+        inner_gear_features = gear.inner_gear and gear.inner_gear_outer_diameter != 0
+
+        if inner_gear_features:
             # Draws outer circle
             sketch.sketchCurves.sketchCircles.addByCenterRadius(fission.Point3D(0, 0),
                                                                 gear.inner_gear_outer_diameter / 2)
-            profs.add(sketch.profiles[-1])
-        else:
+            outer_profs = adsk.core.ObjectCollection.create()
             for prof in sketch.profiles:
-                profs.add(prof)
+                outer_profs.add(prof)
+            outerExtrudeInput = component.features.extrudeFeatures.createInput(outer_profs,
+                                                                               adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
+            outerExtrudeInput.setDistanceExtent(self.herringbone.value,
+                                                adsk.core.ValueInput.createByReal(thickness))
+            outerExtrudeFeature = component.features.extrudeFeatures.add(outerExtrudeInput)
 
         sweepInput = component.features.sweepFeatures.createInput(profs, path1,
+                                                                  adsk.fusion.FeatureOperations.CutFeatureOperation
+                                                                  if inner_gear_features else
                                                                   adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
         sweepInput.twistAngle = adsk.core.ValueInput.createByString(str(pitch_helix.t_for(thickness)) + " rad")
         sweepFeature = component.features.sweepFeatures.add(sweepInput)
 
         if (self.herringbone.value):
             sweepInput2 = component.features.sweepFeatures.createInput(profs, path2,
+                                                                       adsk.fusion.FeatureOperations.CutFeatureOperation
+                                                                       if inner_gear_features else
                                                                        adsk.fusion.FeatureOperations.JoinFeatureOperation)
             sweepInput2.twistAngle = adsk.core.ValueInput.createByString(str(-pitch_helix.t_for(thickness)) + " rad")
             sweepFeature2 = component.features.sweepFeatures.add(sweepInput2)
