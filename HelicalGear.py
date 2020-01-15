@@ -360,8 +360,8 @@ class HelicalGear(object):
     def pitch_helix(self):
         return HelixCurve(
             self.pitch_diameter / 2,
-            math.radians(90) - self.helix_angle if self.handedness is Handedness.right else math.radians(
-                90) + self.helix_angle)
+            math.radians(90) - self.helix_angle if self.handedness is Handedness.right else
+            math.radians(90) + self.helix_angle)
 
     def __str__(self):
         str = ''
@@ -666,7 +666,7 @@ class HelicalGearAddin(fission.CommandBase):
             'herringbone': False,
             'inner_gear': False,
             'inner_gear_clearance': 0.25,
-            'inner_gear_outer_diameter': 6.5}
+            'inner_gear_outer_diameter': 0}
 
     @property
     def is_repeatable(self):
@@ -770,8 +770,8 @@ Sunderland: The Sunderland machine is commonly used to make a double helical gea
             'inner_gear_clearance',
             'Inner Gear Clearance',
             self.pers["inner_gear_clearance"], '', persist=False,
-            on_validate=lambda i: not self.inner_gear.eval() or i.eval() > 0,
-            description='Clearance for the inner Gear.')
+            on_validate=lambda i: not self.inner_gear.eval() or i.eval() >= 0,
+            description='Clearance for the inner Gear. This value should be between 0.25 and 0.5')
         self.inner_gear_outer_diameter = factory.addValueInput(
             'inner_gear_outer_diameter',
             'Outer Diameter',
@@ -813,8 +813,8 @@ Sunderland: The Sunderland machine is commonly used to make a double helical gea
 
         # factory.additional_validator = self.on_validate
         # Trigger any change events we have setup - the values may have been restored from saved state
-        self.gear_standard_changed(self.gear_standard)
-        self.inner_gear_changed(self.inner_gear)
+        self.gear_standard_changed(self.gear_standard, update_warnings=False)
+        self.inner_gear_changed(self.inner_gear, update_warnings=False)
         self.update_warnings()
 
     def __on_input_changed(self, _a) -> 'input_changed':
@@ -857,6 +857,10 @@ Sunderland: The Sunderland machine is commonly used to make a double helical gea
             if warn_msg: warn_msg += '<br/>'
             warn_msg += 'Generating a gear with a high number of teeth has poor performance. Previewing will be limited to 150 teeth but clicking OK will generate the gear.'
             warn_lines += 4
+        if gear.inner_gear and not 0.25 <= gear.inner_gear_clearance <= 0.5:
+            if warn_msg: warn_msg += '<br/>'
+            warn_msg += 'Inner Gear Clearance should be between 0.25 and 0.5'
+            warn_lines += 2
         self.set_warn_message(warn_msg, warn_lines)
 
         if not self.helix_angle.validate():
@@ -871,6 +875,12 @@ Sunderland: The Sunderland machine is commonly used to make a double helical gea
         if not (abs(gear.backlash_angle) / 4 < gear.tooth_arc_angle / 8):
             bad_fields.append((self.backlash.name,
                                'must be in the range +/- {0:.4f} mm.'.format(10 * gear.circular_pitch / 2 - 0.00005)))
+            err_lines += 1
+        if not self.inner_gear_clearance.validate():
+            bad_fields.append((self.inner_gear_clearance.name, 'must be positive.'))
+            err_lines += 1
+        if not self.inner_gear_outer_diameter.validate():
+            bad_fields.append((self.inner_gear_outer_diameter.name, 'must be greater than 0.'))
             err_lines += 1
 
         if not bad_fields and not gear.is_valid:
@@ -904,7 +914,7 @@ Sunderland: The Sunderland machine is commonly used to make a double helical gea
             self.warn_message.numRows = count_lines if count_lines > 0 else 3
             self.warn_message.isVisible = True if message else False
 
-    def gear_standard_changed(self, sender):
+    def gear_standard_changed(self, sender, update_warnings=True):
         choice = sender.eval()
         if choice == GearStandards.sunderland:
             # self.pressure_angle.value = math.radians(20)
@@ -914,11 +924,15 @@ Sunderland: The Sunderland machine is commonly used to make a double helical gea
         else:
             self.pressure_angle.isEnabled = True
             self.helix_angle.isEnabled = True
+        if update_warnings:
+            self.update_warnings()
 
-    def inner_gear_changed(self, sender):
+    def inner_gear_changed(self, sender, update_warnings=True):
         choice = sender.eval()
         self.inner_gear_clearance.isVisible = choice
         self.inner_gear_outer_diameter.isVisible = choice
+        if update_warnings:
+            self.update_warnings()
 
     def on_execute(self, args) -> 'execute':
         self.generate_gear(True, False)
@@ -938,7 +952,6 @@ Sunderland: The Sunderland machine is commonly used to make a double helical gea
                   self.inner_gear_clearance,
                   self.inner_gear_outer_diameter]:
             self.pers[i.id] = i.value
-
 
     def on_preview(self, args) -> 'preview':
         ret = self.generate_gear(self.full_preview.value, True)
@@ -1019,7 +1032,6 @@ Sunderland: The Sunderland machine is commonly used to make a double helical gea
             math.degrees(gear.helix_angle),
             round(gear.normal_module * 10, 4))
 
-        
         if self.base_feature.value and self.design.design.designType:
             self.basefeat = component.features.baseFeatures.add()
             self.basefeat.startEdit()

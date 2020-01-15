@@ -498,7 +498,17 @@ class InputFactory(FusionEventHandler):
         self._set_tips(input, name, tooltip, description, help_image)
         um = self._unitsMgr
         du = self._design_utils
-        input.eval = lambda: um.evaluateExpression(input.expression, units)
+
+        def evalInput():
+            try:
+                return um.evaluateExpression(input.expression, units)
+            except RuntimeError as e:
+                # This prevents an exception from being thrown when opening the window if the helix angle is 0
+                # TODO: this works but is this the right way?
+                return um.evaluateExpression(str(input.value), units)
+
+        input.eval = lambda: evalInput()
+
         self.handle_change(input, on_change)
         self.handle_validate(input, on_validate)
         if persist:
