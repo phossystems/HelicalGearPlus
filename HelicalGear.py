@@ -751,7 +751,7 @@ Sunderland: The Sunderland machine is commonly used to make a double helical gea
         self.backlash = factory.addValueInput(
             'backlash',
             'Backlash',
-            str(self.pers['backlash']), 'mm', persist=False,
+            self.pers['backlash'], 'mm', persist=False,
             description='[experimental] a positive value here causes each tooth to be slightly narrower than the ideal tooth. In the real world having a perfect tooth is not often desired, it is better to build in a little backlash to reduce friction, allow room for lubricant between teeth, and to prevent jamming.\n\nBacklash is allowed to also be negative which has no real world application I\'m aware of but may be useful for compensating for undersized teeth which were 3D printed, etc.\n\nThe backlash value is split between this gear and its theoretical mate.')
         self.gear_thickness = factory.addValueInput(
             'gear_thickness',

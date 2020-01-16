@@ -505,7 +505,7 @@ class InputFactory(FusionEventHandler):
             except RuntimeError as e:
                 # This prevents an exception from being thrown when opening the window if the helix angle is 0
                 # TODO: this works but is this the right way?
-                return um.evaluateExpression(str(input.value), units)
+                return input.value
 
         input.eval = lambda: evalInput()
 
