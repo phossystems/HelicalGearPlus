@@ -1132,6 +1132,7 @@ Sunderland: The Sunderland machine is commonly used to make a double helical gea
                 fission.Point3D(0, 0),
                 gear.pitch_diameter / 2)
             pitch_diameter_circle.isConstruction = True
+            pitch_diameter_circle.isFixed = True
             last_timeline_object = pitch_diameter_sketch.timelineObject
 
         if self.design.design.designType:
