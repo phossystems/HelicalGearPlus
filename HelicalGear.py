@@ -360,8 +360,8 @@ class HelicalGear(object):
     def pitch_helix(self):
         return HelixCurve(
             self.pitch_diameter / 2,
-            math.radians(90) - self.helix_angle if self.handedness is Handedness.right else math.radians(
-                90) + self.helix_angle)
+            math.radians(90) - self.helix_angle if self.handedness is Handedness.right else
+            math.radians(90) + self.helix_angle)
 
     def __str__(self):
         str = ''
@@ -666,7 +666,8 @@ class HelicalGearAddin(fission.CommandBase):
             'herringbone': False,
             'inner_gear': False,
             'inner_gear_clearance': 0.25,
-            'inner_gear_outer_diameter': 6.5}
+            'inner_gear_outer_diameter': 0,
+            'pitch_diameter_sketch': True}
 
     @property
     def is_repeatable(self):
@@ -751,7 +752,7 @@ Sunderland: The Sunderland machine is commonly used to make a double helical gea
         self.backlash = factory.addValueInput(
             'backlash',
             'Backlash',
-            str(self.pers['backlash']), 'mm', persist=False,
+            self.pers['backlash'], 'mm', persist=False,
             description='[experimental] a positive value here causes each tooth to be slightly narrower than the ideal tooth. In the real world having a perfect tooth is not often desired, it is better to build in a little backlash to reduce friction, allow room for lubricant between teeth, and to prevent jamming.\n\nBacklash is allowed to also be negative which has no real world application I\'m aware of but may be useful for compensating for undersized teeth which were 3D printed, etc.\n\nThe backlash value is split between this gear and its theoretical mate.')
         self.gear_thickness = factory.addValueInput(
             'gear_thickness',
@@ -770,31 +771,37 @@ Sunderland: The Sunderland machine is commonly used to make a double helical gea
             'inner_gear_clearance',
             'Inner Gear Clearance',
             self.pers["inner_gear_clearance"], '', persist=False,
-            on_validate=lambda i: not self.inner_gear.eval() or i.eval() > 0,
-            description='Clearance for the inner Gear.')
+            on_validate=lambda i: not self.inner_gear.eval() or i.eval() >= 0,
+            description='Clearance for the inner Gear. This value should be between 0.25 and 0.5')
         self.inner_gear_outer_diameter = factory.addValueInput(
             'inner_gear_outer_diameter',
             'Outer Diameter',
             self.pers["inner_gear_outer_diameter"], 'mm', persist=False,
-            on_validate=lambda i: not self.inner_gear.eval() or i.eval() > 0,
-            description='Outer Diameter for the inner Gear.')
+            on_validate=lambda i: not self.inner_gear.eval() or i.eval() >= 0,
+            description='Outer Diameter for the inner Gear. Set to 0 to apply inner gear parameters to an outer gear.')
         self.herringbone = factory.create_checkbox(
             'herringbone',
             'Herringbone',
             self.pers["herringbone"],
             tooltip='Generate as herringbone gear when checked.',
             persist=False)
-        self.full_preview = factory.create_checkbox(
-            'full_preview',
-            'Preview',
-            False,
-            tooltip='Generate a full preview when checked.',
-            persist=False)
         self.base_feature = factory.create_checkbox(
             'base_feature',
             'Base Feature',
             self.pers['base_feature'],
             tooltip='Generates as a base feature when checked. Slightly better performance when recomputing.',
+            persist=False)
+        self.pitch_diameter_sketch = factory.create_checkbox(
+            'pitch_diameter_sketch',
+            'Pitch Diameter Sketch',
+            self.pers['pitch_diameter_sketch'],
+            tooltip='Adds a Sketch that contains the pitch diameter.',
+            persist=False)
+        self.full_preview = factory.create_checkbox(
+            'full_preview',
+            'Preview',
+            False,
+            tooltip='Generate a full preview when checked.',
             persist=False)
 
         self.error_message = factory.create_textbox('error_message', read_only=True, persist=False)
@@ -813,8 +820,8 @@ Sunderland: The Sunderland machine is commonly used to make a double helical gea
 
         # factory.additional_validator = self.on_validate
         # Trigger any change events we have setup - the values may have been restored from saved state
-        self.gear_standard_changed(self.gear_standard)
-        self.inner_gear_changed(self.inner_gear)
+        self.gear_standard_changed(self.gear_standard, update_warnings=False)
+        self.inner_gear_changed(self.inner_gear, update_warnings=False)
         self.update_warnings()
 
     def __on_input_changed(self, _a) -> 'input_changed':
@@ -857,6 +864,10 @@ Sunderland: The Sunderland machine is commonly used to make a double helical gea
             if warn_msg: warn_msg += '<br/>'
             warn_msg += 'Generating a gear with a high number of teeth has poor performance. Previewing will be limited to 150 teeth but clicking OK will generate the gear.'
             warn_lines += 4
+        if gear.inner_gear and not 0.25 <= gear.inner_gear_clearance <= 0.5:
+            if warn_msg: warn_msg += '<br/>'
+            warn_msg += 'Inner Gear Clearance should be between 0.25 and 0.5'
+            warn_lines += 2
         self.set_warn_message(warn_msg, warn_lines)
 
         if not self.helix_angle.validate():
@@ -871,6 +882,12 @@ Sunderland: The Sunderland machine is commonly used to make a double helical gea
         if not (abs(gear.backlash_angle) / 4 < gear.tooth_arc_angle / 8):
             bad_fields.append((self.backlash.name,
                                'must be in the range +/- {0:.4f} mm.'.format(10 * gear.circular_pitch / 2 - 0.00005)))
+            err_lines += 1
+        if not self.inner_gear_clearance.validate():
+            bad_fields.append((self.inner_gear_clearance.name, 'must be positive.'))
+            err_lines += 1
+        if not self.inner_gear_outer_diameter.validate():
+            bad_fields.append((self.inner_gear_outer_diameter.name, 'must be positive.'))
             err_lines += 1
 
         if not bad_fields and not gear.is_valid:
@@ -904,7 +921,7 @@ Sunderland: The Sunderland machine is commonly used to make a double helical gea
             self.warn_message.numRows = count_lines if count_lines > 0 else 3
             self.warn_message.isVisible = True if message else False
 
-    def gear_standard_changed(self, sender):
+    def gear_standard_changed(self, sender, update_warnings=True):
         choice = sender.eval()
         if choice == GearStandards.sunderland:
             # self.pressure_angle.value = math.radians(20)
@@ -914,11 +931,15 @@ Sunderland: The Sunderland machine is commonly used to make a double helical gea
         else:
             self.pressure_angle.isEnabled = True
             self.helix_angle.isEnabled = True
+        if update_warnings:
+            self.update_warnings()
 
-    def inner_gear_changed(self, sender):
+    def inner_gear_changed(self, sender, update_warnings=True):
         choice = sender.eval()
         self.inner_gear_clearance.isVisible = choice
         self.inner_gear_outer_diameter.isVisible = choice
+        if update_warnings:
+            self.update_warnings()
 
     def on_execute(self, args) -> 'execute':
         self.generate_gear(True, False)
@@ -936,9 +957,9 @@ Sunderland: The Sunderland machine is commonly used to make a double helical gea
                   self.herringbone,
                   self.inner_gear,
                   self.inner_gear_clearance,
-                  self.inner_gear_outer_diameter]:
+                  self.inner_gear_outer_diameter,
+                  self.pitch_diameter_sketch]:
             self.pers[i.id] = i.value
-
 
     def on_preview(self, args) -> 'preview':
         ret = self.generate_gear(self.full_preview.value, True)
@@ -1019,7 +1040,6 @@ Sunderland: The Sunderland machine is commonly used to make a double helical gea
             math.degrees(gear.helix_angle),
             round(gear.normal_module * 10, 4))
 
-        
         if self.base_feature.value and self.design.design.designType:
             self.basefeat = component.features.baseFeatures.add()
             self.basefeat.startEdit()
@@ -1062,42 +1082,64 @@ Sunderland: The Sunderland machine is commonly used to make a double helical gea
 
         profs = adsk.core.ObjectCollection.create()
 
-        if gear.inner_gear and gear.inner_gear_outer_diameter != 0:
+        for prof in sketch.profiles:
+            profs.add(prof)
+
+        inner_gear_features = gear.inner_gear and gear.inner_gear_outer_diameter != 0
+
+        if inner_gear_features:
             # Draws outer circle
             sketch.sketchCurves.sketchCircles.addByCenterRadius(fission.Point3D(0, 0),
                                                                 gear.inner_gear_outer_diameter / 2)
-            profs.add(sketch.profiles[-1])
-        else:
+            outer_profs = adsk.core.ObjectCollection.create()
             for prof in sketch.profiles:
-                profs.add(prof)
+                outer_profs.add(prof)
+            outerExtrudeInput = component.features.extrudeFeatures.createInput(outer_profs,
+                                                                               adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
+            outerExtrudeInput.setDistanceExtent(self.herringbone.value,
+                                                adsk.core.ValueInput.createByReal(thickness))
+            outerExtrudeFeature = component.features.extrudeFeatures.add(outerExtrudeInput)
 
         sweepInput = component.features.sweepFeatures.createInput(profs, path1,
+                                                                  adsk.fusion.FeatureOperations.CutFeatureOperation
+                                                                  if inner_gear_features else
                                                                   adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
         sweepInput.twistAngle = adsk.core.ValueInput.createByString(str(pitch_helix.t_for(thickness)) + " rad")
         sweepFeature = component.features.sweepFeatures.add(sweepInput)
+        last_timeline_object = sweepFeature.timelineObject
 
         if (self.herringbone.value):
             sweepInput2 = component.features.sweepFeatures.createInput(profs, path2,
+                                                                       adsk.fusion.FeatureOperations.CutFeatureOperation
+                                                                       if inner_gear_features else
                                                                        adsk.fusion.FeatureOperations.JoinFeatureOperation)
             sweepInput2.twistAngle = adsk.core.ValueInput.createByString(str(-pitch_helix.t_for(thickness)) + " rad")
             sweepFeature2 = component.features.sweepFeatures.add(sweepInput2)
+            last_timeline_object = sweepFeature2.timelineObject
 
         print(self.base_feature.value)
         print(self.design.design.designType)
 
         if self.base_feature.value:
             self.basefeat.finishEdit()
-            timelineGroups = self.design.design.timeline.timelineGroups
-            endIndex = self.basefeat.timelineObject.index
-            timelineGroup = timelineGroups.add(endIndex - 1, endIndex)
-            timelineGroup.name = component.name
-        else:
-            if self.design.design.designType:
-                timelineGroups = self.design.design.timeline.timelineGroups
-                startIndex = component.features[0].timelineObject.index - 2  # <--   Not good code but works
-                endIndex = sweepFeature.timelineObject.index + (1 if self.herringbone.value else 0)
-                timelineGroup = timelineGroups.add(startIndex, endIndex)
-                timelineGroup.name = component.name
+            last_timeline_object = self.basefeat.timelineObject
+
+        # Add pitch diameter sketch
+        if self.pitch_diameter_sketch.value:
+            pitch_diameter_sketch = component.sketches.add(component.xYConstructionPlane)
+            pitch_diameter_sketch.name = 'Pitch Diameter'
+            pitch_diameter_circle = pitch_diameter_sketch.sketchCurves.sketchCircles.addByCenterRadius(
+                fission.Point3D(0, 0),
+                gear.pitch_diameter / 2)
+            pitch_diameter_circle.isConstruction = True
+            pitch_diameter_circle.isFixed = True
+            last_timeline_object = pitch_diameter_sketch.timelineObject
+
+        if self.design.design.designType:
+            timeline_groups = self.design.design.timeline.timelineGroups
+            timeline_group = timeline_groups.add(component.occurrence.timelineObject.index,
+                                                 last_timeline_object.index)
+            timeline_group.name = component.name
 
         sketch.isVisible = False
 
