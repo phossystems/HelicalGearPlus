@@ -1,5 +1,6 @@
 import adsk.core, adsk.fusion, traceback
 import math
+import time
 
 # Global set of event handlers to keep them referenced for the duration of the command
 _handlers = []
@@ -305,7 +306,7 @@ class HelicalGear:
 
     @staticmethod
     def create_in_normal_system(tooth_count, normal_module, normal_pressure_angle, helix_angle, backlash=0, addendum=1,
-                                dedendum=1.25):
+                                dedendum=1.25, width=1, herringbone=False, internal_outside_diameter=None):
         tooth_count = tooth_count if tooth_count > 0 else 1
         normal_module = normal_module if normal_module > 0 else 1e-10
         normal_pressure_angle = normal_pressure_angle if 0 <= normal_pressure_angle < math.radians(90) else 0
@@ -315,6 +316,9 @@ class HelicalGear:
         gear.backlash = backlash
         gear.helix_angle = helix_angle
         gear.tooth_count = tooth_count
+        gear.width = width
+        gear.herringbone = herringbone
+        gear.internal_outside_diameter = internal_outside_diameter
 
         gear.normal_module = normal_module
         gear.normal_pressure_angle = normal_pressure_angle
@@ -373,7 +377,7 @@ class HelicalGear:
 
         return gear
 
-    def model_gear(self, parent_component, width, herringbone, outside_diameter=None):
+    def model_gear(self, parent_component):
         # Create new component
         component = parent_component.occurrences.addNewComponent(adsk.core.Matrix3D.create()).component
         component.name = 'Healical Gear ({0}{1}@{2:.2f} m={3})'.format(
@@ -397,29 +401,29 @@ class HelicalGear:
         # Base Circle
         sketch.sketchCurves.sketchCircles.addByCenterRadius(adsk.core.Point3D.create(0, 0, 0), self.root_diameter / 2)
         # Outer diameter
-        if (outside_diameter):
-            sketch.sketchCurves.sketchCircles.addByCenterRadius(adsk.core.Point3D.create(0, 0, 0), outside_diameter)
+        if (self.internal_outside_diameter):
+            sketch.sketchCurves.sketchCircles.addByCenterRadius(adsk.core.Point3D.create(0, 0, 0), self.internal_outside_diameter)
         # Sweep path
-        if (herringbone):
+        if (self.herringbone):
             line1 = sketch.sketchCurves.sketchLines.addByTwoPoints(adsk.core.Point3D.create(0, 0, 0),
-                                                                   adsk.core.Point3D.create(0, 0, width / 2))
+                                                                   adsk.core.Point3D.create(0, 0, self.width / 2))
             line2 = sketch.sketchCurves.sketchLines.addByTwoPoints(adsk.core.Point3D.create(0, 0, 0),
-                                                                   adsk.core.Point3D.create(0, 0, -width / 2))
+                                                                   adsk.core.Point3D.create(0, 0, -self.width / 2))
         else:
             line1 = sketch.sketchCurves.sketchLines.addByTwoPoints(adsk.core.Point3D.create(0, 0, 0),
-                                                                   adsk.core.Point3D.create(0, 0, width))
+                                                                   adsk.core.Point3D.create(0, 0, self.width))
         sketch.isComputeDeferred = False
         profs = adsk.core.ObjectCollection.create()
-        if (outside_diameter):
+        if (self.internal_outside_diameter):
             profs.add(sketch.profiles[-1])
         else:
             for prof in sketch.profiles:
                 profs.add(prof)
-        if (herringbone):
+        if (self.herringbone):
             path1 = component.features.createPath(line1)
             sweepInput = component.features.sweepFeatures.createInput(profs, path1,
                                                                       adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
-            sweepInput.twistAngle = adsk.core.ValueInput.createByReal(self.t_for(width / 2))
+            sweepInput.twistAngle = adsk.core.ValueInput.createByReal(self.t_for(self.width / 2))
             if (base_feature):
                 sweepInput.targetBaseFeature = base_feature
             sweepFeature = component.features.sweepFeatures.add(sweepInput)
@@ -427,7 +431,7 @@ class HelicalGear:
             path2 = component.features.createPath(line2)
             sweepInput = component.features.sweepFeatures.createInput(profs, path2,
                                                                       adsk.fusion.FeatureOperations.JoinFeatureOperation)
-            sweepInput.twistAngle = adsk.core.ValueInput.createByReal(-self.t_for(width / 2))
+            sweepInput.twistAngle = adsk.core.ValueInput.createByReal(-self.t_for(self.width / 2))
             if (base_feature):
                 sweepInput.targetBaseFeature = base_feature
             sweepFeature = component.features.sweepFeatures.add(sweepInput)
@@ -435,7 +439,7 @@ class HelicalGear:
             path1 = component.features.createPath(line1)
             sweepInput = component.features.sweepFeatures.createInput(profs, path1,
                                                                       adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
-            sweepInput.twistAngle = adsk.core.ValueInput.createByReal(self.t_for(width))
+            sweepInput.twistAngle = adsk.core.ValueInput.createByReal(self.t_for(self.width))
             if (base_feature):
                 sweepInput.targetBaseFeature = base_feature
             sweepFeature = component.features.sweepFeatures.add(sweepInput)
@@ -542,9 +546,9 @@ class RackGear:
         # Array to keep track of TempBRepBodies
         tempBRepBodies = []
         # Creates BRep wire object(s), representing edges in 3D space from an array of 3Dcurves
-        if (self.helix_angle > 0):
+        if (self.helix_angle < 0):
             wireBody1, _ = tbm.createWireFromCurves(
-                self.rackLines(-self.length / 2 - math.tan(self.helix_angle) * self.width, -self.width / 2, 0,
+                self.rackLines(-self.length / 2 - math.tan(-self.helix_angle) * self.width, -self.width / 2, 0,
                                self.normal_module, teeth, self.height, self.normal_pressure_angle, self.helix_angle,
                                self.backlash, self.addendum, self.dedendum))
             wireBody2, _ = tbm.createWireFromCurves(
@@ -557,7 +561,7 @@ class RackGear:
                                self.normal_pressure_angle, self.helix_angle, self.backlash, self.addendum,
                                self.dedendum))
             wireBody2, _ = tbm.createWireFromCurves(
-                self.rackLines(-self.length / 2 - math.tan(-self.helix_angle) * self.width, self.width / 2, 0,
+                self.rackLines(-self.length / 2 - math.tan(self.helix_angle) * self.width, self.width / 2, 0,
                                self.normal_module, teeth, self.height, self.normal_pressure_angle, self.helix_angle,
                                self.backlash, self.addendum, self.dedendum))
 
@@ -567,6 +571,7 @@ class RackGear:
         # Creates the ruled surface connectiong the two end caps
         tempBRepBodies.append(tbm.createRuledSurface(wireBody1.wires.item(0), wireBody2.wires.item(0)))
         # Turns surfaces into real BRep so they can be boundary filled
+        t = time.time()
         tools = adsk.core.ObjectCollection.create()
         for b in tempBRepBodies:
             if (base_feature):
@@ -580,6 +585,9 @@ class RackGear:
             boundaryFillInput.targetBaseFeature = base_feature
         boundaryFillInput.bRepCells.item(0).isSelected = True
         body = component.features.boundaryFillFeatures.add(boundaryFillInput).bodies.item(0)
+        print("BFill:")
+        print(time.time()-t)
+        t = time.time()
         # Creates a box to cut off angled ends
         obb = adsk.core.OrientedBoundingBox3D.create(adsk.core.Point3D.create(0, 0, 0),
                                                      adsk.core.Vector3D.create(1, 0, 0),
@@ -592,6 +600,8 @@ class RackGear:
         else:
             component.bRepBodies.add(box)
         body.deleteMe()
+        print("Bool:")
+        print(time.time()-t)
 
         # Deletes tooling bodies
         for b in tools:
@@ -693,7 +703,8 @@ class CommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
 
             viDedendum = tabAdvanced.children.addValueInput("VIDedendum", "Dedendum", "",
                                                             adsk.core.ValueInput.createByReal(pers['VIDedendum']))
-
+            # Properties
+            tbProperties = tabProperties.children.addTextBoxCommandInput("TBProperties", "", "Lorem", 5, True)
 
 
         except:
@@ -709,81 +720,8 @@ class CommandExecuteHandler(adsk.core.CommandEventHandler):
     def notify(self, args):
         try:
             # Saves inputs to dict for persistence
-            pers['DDType'] = args.command.commandInputs.itemById("DDType").selectedItem.name
-            pers['DDStandard'] = args.command.commandInputs.itemById("DDStandard").selectedItem.name
-            pers['VIHelixAngle'] = args.command.commandInputs.itemById("VIHelixAngle").value
-            pers['VIPressureAngle'] = args.command.commandInputs.itemById("VIPressureAngle").value
-            pers['VIModule'] = args.command.commandInputs.itemById("VIModule").value
-            pers['ISTeeth'] = args.command.commandInputs.itemById("ISTeeth").value
-            pers['VIBacklash'] = args.command.commandInputs.itemById("VIBacklash").value
-            pers['VIWidth'] = args.command.commandInputs.itemById("VIWidth").value
-            pers['VIHeight'] = args.command.commandInputs.itemById("VIHeight").value
-            pers['VILength'] = args.command.commandInputs.itemById("VILength").value
-            pers['VIDiameter'] = args.command.commandInputs.itemById("VIDiameter").value
-            pers['BVHerringbone'] = args.command.commandInputs.itemById("BVHerringbone").value
-            pers['BVPreview'] = args.command.commandInputs.itemById("BVPreview").value
-            pers['VIAddendum'] = args.command.commandInputs.itemById("VIAddendum").value
-            pers['VIDedendum'] = args.command.commandInputs.itemById("VIDedendum").value
-
-            app = adsk.core.Application.get()
-            des = app.activeProduct
-            root = des.rootComponent
-            bodies = root.bRepBodies
-
-            gearType = args.command.commandInputs.itemById("DDType").selectedItem.name
-
-            if (gearType == "Rack Gear"):
-
-                gear = RackGear.create_in_normal_system(
-                    args.command.commandInputs.itemById("VIModule").value,
-                    args.command.commandInputs.itemById("VIPressureAngle").value,
-                    args.command.commandInputs.itemById("VIHelixAngle").value,
-                    args.command.commandInputs.itemById("BVHerringbone").value,
-                    args.command.commandInputs.itemById("VILength").value,
-                    args.command.commandInputs.itemById("VIWidth").value,
-                    args.command.commandInputs.itemById("VIHeight").value,
-                    args.command.commandInputs.itemById("VIBacklash").value,
-                    args.command.commandInputs.itemById("VIAddendum").value,
-                    args.command.commandInputs.itemById("VIDedendum").value
-                )
-                gear.model_gear(root)
-            else:
-                if (gearType == "External Gear"):
-                    gear = HelicalGear.create_in_normal_system(
-                        args.command.commandInputs.itemById("ISTeeth").value,
-                        args.command.commandInputs.itemById("VIModule").value,
-                        args.command.commandInputs.itemById("VIPressureAngle").value,
-                        args.command.commandInputs.itemById("VIHelixAngle").value,
-                        args.command.commandInputs.itemById("VIBacklash").value,
-                        args.command.commandInputs.itemById("VIAddendum").value,
-                        args.command.commandInputs.itemById("VIDedendum").value
-                    )
-                    gear.model_gear(
-                        root,
-                        args.command.commandInputs.itemById("VIWidth").value,
-                        args.command.commandInputs.itemById("BVHerringbone").value
-                    )
-                else:
-                    gear = HelicalGear.create_in_normal_system(
-                        args.command.commandInputs.itemById("ISTeeth").value,
-                        args.command.commandInputs.itemById("VIModule").value,
-                        args.command.commandInputs.itemById("VIPressureAngle").value,
-                        args.command.commandInputs.itemById("VIHelixAngle").value,
-                        -args.command.commandInputs.itemById("VIBacklash").value,
-                        args.command.commandInputs.itemById("VIDedendum").value,
-                        args.command.commandInputs.itemById("VIAddendum").value
-                    )
-                    gear.model_gear(
-                        root,
-                        args.command.commandInputs.itemById("VIWidth").value,
-                        args.command.commandInputs.itemById("BVHerringbone").value,
-                        args.command.commandInputs.itemById("VIDiameter").value
-                    )
-
-
-
-
-
+            preserve_inputs(args.command.commandInputs, pers)
+            generate_gear(args.command.commandInputs).model_gear(adsk.core.Application.get().activeProduct.rootComponent)
         except:
             print(traceback.format_exc())
 
@@ -797,14 +735,12 @@ class CommandExecutePreviewHandler(adsk.core.CommandEventHandler):
 
     def notify(self, args):
         try:
-            eventArgs = adsk.core.CommandEventArgs.cast(args)
-
-            # TODO: Add Command Execution Preview Stuff Here
-
-            # If set to True Fusion will use the last preview instead of calling
-            # the ExecuteHandler when the user executes the Command.
-            # If the preview is identical to the actual executing this saves recomputation
-            eventArgs.isValidResult = False
+            if(args.command.commandInputs.itemById("BVPreview").value):
+                preserve_inputs(args.command.commandInputs, pers)
+                generate_gear(args.command.commandInputs).model_gear(adsk.core.Application.get().activeProduct.rootComponent)
+                args.isValidResult = True
+            else:
+                args.isValidResult = False
 
         except:
             print(traceback.format_exc())
@@ -843,6 +779,69 @@ class CommandDestroyHandler(adsk.core.CommandEventHandler):
             pass
         except:
             print(traceback.format_exc())
+
+
+def preserve_inputs(commandInputs, pers):
+    pers['DDType'] = commandInputs.itemById("DDType").selectedItem.name
+    pers['DDStandard'] = commandInputs.itemById("DDStandard").selectedItem.name
+    pers['VIHelixAngle'] = commandInputs.itemById("VIHelixAngle").value
+    pers['VIPressureAngle'] = commandInputs.itemById("VIPressureAngle").value
+    pers['VIModule'] = commandInputs.itemById("VIModule").value
+    pers['ISTeeth'] = commandInputs.itemById("ISTeeth").value
+    pers['VIBacklash'] = commandInputs.itemById("VIBacklash").value
+    pers['VIWidth'] = commandInputs.itemById("VIWidth").value
+    pers['VIHeight'] = commandInputs.itemById("VIHeight").value
+    pers['VILength'] = commandInputs.itemById("VILength").value
+    pers['VIDiameter'] = commandInputs.itemById("VIDiameter").value
+    pers['BVHerringbone'] = commandInputs.itemById("BVHerringbone").value
+    pers['BVPreview'] = commandInputs.itemById("BVPreview").value
+    pers['VIAddendum'] = commandInputs.itemById("VIAddendum").value
+    pers['VIDedendum'] = commandInputs.itemById("VIDedendum").value
+
+
+def generate_gear(commandInputs):
+    gearType = commandInputs.itemById("DDType").selectedItem.name
+
+    if (gearType == "Rack Gear"):
+        gear = RackGear.create_in_normal_system(
+            commandInputs.itemById("VIModule").value,
+            commandInputs.itemById("VIPressureAngle").value,
+            commandInputs.itemById("VIHelixAngle").value,
+            commandInputs.itemById("BVHerringbone").value,
+            commandInputs.itemById("VILength").value,
+            commandInputs.itemById("VIWidth").value,
+            commandInputs.itemById("VIHeight").value,
+            commandInputs.itemById("VIBacklash").value,
+            commandInputs.itemById("VIAddendum").value,
+            commandInputs.itemById("VIDedendum").value
+        )
+    else:
+        if (gearType == "External Gear"):
+            gear = HelicalGear.create_in_normal_system(
+                commandInputs.itemById("ISTeeth").value,
+                commandInputs.itemById("VIModule").value,
+                commandInputs.itemById("VIPressureAngle").value,
+                commandInputs.itemById("VIHelixAngle").value,
+                commandInputs.itemById("VIBacklash").value,
+                commandInputs.itemById("VIAddendum").value,
+                commandInputs.itemById("VIDedendum").value,
+                commandInputs.itemById("VIWidth").value,
+                commandInputs.itemById("BVHerringbone").value
+            )
+        else:
+            gear = HelicalGear.create_in_normal_system(
+                commandInputs.itemById("ISTeeth").value,
+                commandInputs.itemById("VIModule").value,
+                commandInputs.itemById("VIPressureAngle").value,
+                commandInputs.itemById("VIHelixAngle").value,
+                -commandInputs.itemById("VIBacklash").value,
+                commandInputs.itemById("VIDedendum").value,
+                commandInputs.itemById("VIAddendum").value,
+                commandInputs.itemById("VIWidth").value,
+                commandInputs.itemById("BVHerringbone").value,
+                commandInputs.itemById("VIDiameter").value
+            )
+    return gear
 
 
 def run(context):
