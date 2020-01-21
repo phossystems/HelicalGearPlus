@@ -266,42 +266,20 @@ class HelicalGear:
 
     def __str__(self):
         str = ''
-        if self.is_undercut_requried:
-            str += 'UNDERCUT REQUIRED\n'
-            str += '-Critical Virtual Tooth Count: {0:.3f}\n'.format(self.critcal_virtual_tooth_count)
-            str += '-Current Virtual Tooth Count.: {0:.3f}\n'.format(self.virtual_teeth)
+        str += '\n'
+        str += 'root diameter..............:  {0:.3f} mm\n'.format(self.root_diameter * 10)
+        str += 'base diameter.............:  {0:.3f} mm\n'.format(self.base_diameter * 10)
+        str += 'pitch diameter............:  {0:.3f} mm\n'.format(self.pitch_diameter * 10)
+        str += 'outside diameter.........:  {0:.3f} mm\n'.format(self.outside_diameter * 10)
+        str += '\n'
+        str += 'module.......................:  {0:.3f} mm\n'.format(self.module * 10)
+        str += 'normal module...........:  {0:.3f} mm\n'.format(self.normal_module * 10)
+        str += 'pressure angle............:  {0:.3f} deg\n'.format(math.degrees(self.pressure_angle))
+        str += 'normal pressure angle:  {0:.3f} deg\n'.format(math.degrees(self.normal_pressure_angle))
+        str += '\n'
+        if(self.helix_angle != 0):
+            str += 'length per revolution..:  {0:.3f} mm\n'.format(abs(self.vertical_loop_seperation) * 10)
             str += '\n'
-
-        str += 'helix angle..........: {0:.3f} deg\n'.format(math.degrees(self.helix_angle))
-        str += 'handedness...........: {0}\n'.format("Left" if self.helix_angle < 0 else "Right")
-        str += 'length per revolution: {0:.9f} mm\n'.format(
-            abs(self.vertical_loop_seperation) * 10 if self.helix_angle != 0 else float('inf'))
-        str += '\n'
-        str += 'tooth count..........: {0}\n'.format(self.tooth_count)
-        str += 'module...............: {0:.3f} mm\n'.format(self.module * 10)
-        str += 'pressure angle.......: {0:.3f} deg\n'.format(math.degrees(self.pressure_angle))
-        str += 'tip pressure angle...: {0:.3f} deg\n'.format(math.degrees(self.tip_pressure_angle))
-        str += 'circular pitch.......: {0:.3f} mm\n'.format(self.circular_pitch * 10)
-        str += 'addendum.............: {0:.3f} mm\n'.format(self.addendum * 10)
-        str += 'whole depth..........: {0:.3f} mm\n'.format(self.whole_depth * 10)
-        str += 'backlash.............: {0:.3f} mm\n'.format(self.backlash * 10)
-        str += '\n'
-        str += 'virtual teeth........: {0:.3f}\n'.format(self.virtual_teeth)
-        str += 'normal module........: {0:.3f} mm\n'.format(self.normal_module * 10)
-        str += 'normal pressure angle: {0:.3f} deg\n'.format(math.degrees(self.normal_pressure_angle))
-        str += 'normal circular pitch: {0:.3f} mm\n'.format(self.normal_circular_pitch * 10)
-        str += '\n'
-        str += 'root diameter........: {0:.3f} mm\n'.format(self.root_diameter * 10)
-        str += 'base diameter........: {0:.3f} mm\n'.format(self.base_diameter * 10)
-        str += 'pitch diameter.......: {0:.3f} mm\n'.format(self.pitch_diameter * 10)
-        str += 'outside diameter.....: {0:.3f} mm\n'.format(self.outside_diameter * 10)
-        str += '\n'
-        str += 'tooth arc angle......: {0:.3f} deg\n'.format(math.degrees(self.tooth_arc_angle))
-        str += 'profile shift coef...: {0:.6f}\n'.format(self.profile_shift_coefficient)
-        str += 'involute a...........: {0:.6f} rad\n'.format(self.involute_a)
-        str += 'involute aa..........: {0:.6f} rad\n'.format(self.involute_aa)
-        #    str += 'top land angle.......: {0:.3f} deg\n'.format(math.degrees(self.top_land_angle))
-        #    str += 'top land thickness...: {0:.3f} mm\n'.format(self.top_land_thickness * 10)
         return str
 
     @staticmethod
@@ -470,6 +448,10 @@ class RackGear:
         gear.dedendum = dedendum * gear.normal_module
 
         return gear
+
+    def __str__(self):
+        return ''
+
 
     def rackLines(self, x, y, z, m, n, height, pAngle, hAngle, backlash, addendum, dedendum):
         strech = 1 / math.cos(hAngle)
@@ -761,6 +743,12 @@ class CommandInputChangedHandler(adsk.core.InputChangedEventHandler):
                 args.inputs.itemById("VIHeight").isVisible = gearType == "Rack Gear"
                 args.inputs.itemById("VILength").isVisible = gearType == "Rack Gear"
                 args.inputs.itemById("VIDiameter").isVisible = gearType == "Internal Gear"
+            # Updates Information
+            if(args.inputs.itemById("TabProperties") and args.inputs.itemById("TabProperties").isActive):
+                gear = generate_gear(args.inputs)
+                tbProperties = args.inputs.itemById("TBProperties")
+                tbProperties.numRows = len(str(gear).split('\n'))
+                tbProperties.text = str(gear)
 
 
         except:
@@ -794,7 +782,6 @@ def preserve_inputs(commandInputs, pers):
     pers['VILength'] = commandInputs.itemById("VILength").value
     pers['VIDiameter'] = commandInputs.itemById("VIDiameter").value
     pers['BVHerringbone'] = commandInputs.itemById("BVHerringbone").value
-    pers['BVPreview'] = commandInputs.itemById("BVPreview").value
     pers['VIAddendum'] = commandInputs.itemById("VIAddendum").value
     pers['VIDedendum'] = commandInputs.itemById("VIDedendum").value
 
