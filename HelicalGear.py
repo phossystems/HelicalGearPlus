@@ -319,8 +319,8 @@ class HelicalGear:
         return gear
 
     @staticmethod
-    def create_in_radial_system(tooth_count, radial_module, radial_pressure_angle, helix_angle, backlash=0,
-                                inner_gear=False, inner_gear_clearance=0.25, inner_gear_outer_diameter=0.0):
+    def create_in_radial_system(tooth_count, radial_module, radial_pressure_angle, helix_angle, backlash=0, addendum=1,
+                                dedendum=1.25, width=1, herringbone=False, internal_outside_diameter=None):
         tooth_count = tooth_count if tooth_count > 0 else 1
         radial_module = radial_module if radial_module > 0 else 1e-10
         radial_pressure_angle = radial_pressure_angle if 0 <= radial_pressure_angle < math.radians(90) else 0
@@ -330,10 +330,10 @@ class HelicalGear:
         gear.backlash = backlash
         gear.helix_angle = helix_angle
         gear.tooth_count = tooth_count
+        gear.width = width
+        gear.herringbone = herringbone
+        gear.internal_outside_diameter = internal_outside_diameter
 
-        gear.inner_gear = inner_gear
-        gear.inner_gear_clearance = inner_gear_clearance
-        gear.inner_gear_outer_diameter = inner_gear_outer_diameter
 
         gear.normal_module = radial_module * math.cos(gear.helix_angle)
         gear.normal_pressure_angle = math.atan(math.tan(radial_pressure_angle) * math.cos(gear.helix_angle))
@@ -478,6 +478,31 @@ class RackGear:
 
         return gear
 
+    
+    @staticmethod
+    def create_in_radial_system(radial_module, radial_pressure_angle, helix_angle, herringbone, length, width, height,
+                                backlash=0, addendum=1, dedendum=1.25):
+        gear = RackGear()
+
+        gear.module = radial_module
+        gear.pressure_angle = radial_pressure_angle
+        gear.helix_angle = helix_angle
+        gear.herringbone = herringbone
+        gear.length = length
+        gear.width = width
+        gear.height = height
+        gear.backlash = backlash
+
+        gear.addendum = addendum * gear.module
+        gear.dedendum = dedendum * gear.module
+
+        cos_helix_angle = math.cos(helix_angle)
+        gear.normal_module = gear.module * cos_helix_angle
+        gear.normal_pressure_angle = math.atan(math.tan(radial_pressure_angle) * math.cos(gear.helix_angle))
+
+        return gear
+
+
     def __str__(self):
         str = ''
         str += '\n'
@@ -487,6 +512,23 @@ class RackGear:
         str += 'normal pressure angle:  {0:.3f} deg\n'.format(math.degrees(self.normal_pressure_angle))
         str += '\n'
         return str
+
+
+    @property
+    def is_valid(self):
+        valid = self.length > 0
+        valid &= self.width > 0
+        valid &= self.height > self.dedendum
+        valid &= self.addendum >= 0
+        valid &= self.dedendum >= 0
+        valid &= self.addendum + self.dedendum > 0
+        valid &= self.pressure_angle >= 0
+        valid &= self.pressure_angle < math.radians(90)
+        valid &= self.module > 0
+        valid &= self.tooth_count > 0
+        valid &= math.radians(-90) < self.helix_angle < math.radians(90)
+        valid &= abs(self.backlash_angle) / 4 < self.tooth_arc_angle / 8
+        return valid
 
 
     def rackLines(self, x, y, z, m, n, height, pAngle, hAngle, backlash, addendum, dedendum):
@@ -854,46 +896,88 @@ def preserve_inputs(commandInputs, pers):
 
 def generate_gear(commandInputs):
     gearType = commandInputs.itemById("DDType").selectedItem.name
+    standard = commandInputs.itemById("DDStandard").selectedItem.name
 
     if (gearType == "Rack Gear"):
-        gear = RackGear.create_in_normal_system(
-            commandInputs.itemById("VIModule").value,
-            commandInputs.itemById("VIPressureAngle").value,
-            commandInputs.itemById("VIHelixAngle").value,
-            commandInputs.itemById("BVHerringbone").value,
-            commandInputs.itemById("VILength").value,
-            commandInputs.itemById("VIWidth").value,
-            commandInputs.itemById("VIHeight").value,
-            commandInputs.itemById("VIBacklash").value,
-            commandInputs.itemById("VIAddendum").value,
-            commandInputs.itemById("VIDedendum").value
-        )
-    else:
-        if (gearType == "External Gear"):
-            gear = HelicalGear.create_in_normal_system(
-                commandInputs.itemById("ISTeeth").value,
+        if(standard == "Normal"):
+            gear = RackGear.create_in_normal_system(
                 commandInputs.itemById("VIModule").value,
                 commandInputs.itemById("VIPressureAngle").value,
                 commandInputs.itemById("VIHelixAngle").value,
+                commandInputs.itemById("BVHerringbone").value,
+                commandInputs.itemById("VILength").value,
+                commandInputs.itemById("VIWidth").value,
+                commandInputs.itemById("VIHeight").value,
                 commandInputs.itemById("VIBacklash").value,
                 commandInputs.itemById("VIAddendum").value,
-                commandInputs.itemById("VIDedendum").value,
-                commandInputs.itemById("VIWidth").value,
-                commandInputs.itemById("BVHerringbone").value
+                commandInputs.itemById("VIDedendum").value
             )
         else:
-            gear = HelicalGear.create_in_normal_system(
-                commandInputs.itemById("ISTeeth").value,
+            gear = RackGear.create_in_radial_system(
                 commandInputs.itemById("VIModule").value,
                 commandInputs.itemById("VIPressureAngle").value,
                 commandInputs.itemById("VIHelixAngle").value,
-                -commandInputs.itemById("VIBacklash").value,
-                commandInputs.itemById("VIDedendum").value,
-                commandInputs.itemById("VIAddendum").value,
-                commandInputs.itemById("VIWidth").value,
                 commandInputs.itemById("BVHerringbone").value,
-                commandInputs.itemById("VIDiameter").value
+                commandInputs.itemById("VILength").value,
+                commandInputs.itemById("VIWidth").value,
+                commandInputs.itemById("VIHeight").value,
+                commandInputs.itemById("VIBacklash").value,
+                commandInputs.itemById("VIAddendum").value,
+                commandInputs.itemById("VIDedendum").value
             )
+    else:
+        if (gearType == "External Gear"):
+            if(standard == "Normal"):
+                gear = HelicalGear.create_in_normal_system(
+                    commandInputs.itemById("ISTeeth").value,
+                    commandInputs.itemById("VIModule").value,
+                    commandInputs.itemById("VIPressureAngle").value,
+                    commandInputs.itemById("VIHelixAngle").value,
+                    commandInputs.itemById("VIBacklash").value,
+                    commandInputs.itemById("VIAddendum").value,
+                    commandInputs.itemById("VIDedendum").value,
+                    commandInputs.itemById("VIWidth").value,
+                    commandInputs.itemById("BVHerringbone").value
+                )
+            else:
+                gear = HelicalGear.create_in_radial_system(
+                    commandInputs.itemById("ISTeeth").value,
+                    commandInputs.itemById("VIModule").value,
+                    commandInputs.itemById("VIPressureAngle").value,
+                    commandInputs.itemById("VIHelixAngle").value,
+                    commandInputs.itemById("VIBacklash").value,
+                    commandInputs.itemById("VIAddendum").value,
+                    commandInputs.itemById("VIDedendum").value,
+                    commandInputs.itemById("VIWidth").value,
+                    commandInputs.itemById("BVHerringbone").value
+                )
+        else:
+            if(standard == "Normal"):
+                gear = HelicalGear.create_in_normal_system(
+                    commandInputs.itemById("ISTeeth").value,
+                    commandInputs.itemById("VIModule").value,
+                    commandInputs.itemById("VIPressureAngle").value,
+                    commandInputs.itemById("VIHelixAngle").value,
+                    -commandInputs.itemById("VIBacklash").value,
+                    commandInputs.itemById("VIDedendum").value,
+                    commandInputs.itemById("VIAddendum").value,
+                    commandInputs.itemById("VIWidth").value,
+                    commandInputs.itemById("BVHerringbone").value,
+                    commandInputs.itemById("VIDiameter").value
+                )
+            else:
+                gear = HelicalGear.create_in_radial_system(
+                    commandInputs.itemById("ISTeeth").value,
+                    commandInputs.itemById("VIModule").value,
+                    commandInputs.itemById("VIPressureAngle").value,
+                    commandInputs.itemById("VIHelixAngle").value,
+                    -commandInputs.itemById("VIBacklash").value,
+                    commandInputs.itemById("VIDedendum").value,
+                    commandInputs.itemById("VIAddendum").value,
+                    commandInputs.itemById("VIWidth").value,
+                    commandInputs.itemById("BVHerringbone").value,
+                    commandInputs.itemById("VIDiameter").value
+                )
     return gear
 
 
