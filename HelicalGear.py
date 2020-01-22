@@ -472,10 +472,21 @@ class RackGear:
         gear.addendum = addendum * gear.normal_module
         gear.dedendum = dedendum * gear.normal_module
 
+        cos_helix_angle = math.cos(helix_angle)
+        gear.module = gear.normal_module / cos_helix_angle
+        gear.pressure_angle = math.atan2(math.tan(gear.normal_pressure_angle), cos_helix_angle)
+
         return gear
 
     def __str__(self):
-        return ''
+        str = ''
+        str += '\n'
+        str += 'module.......................:  {0:.3f} mm\n'.format(self.module * 10)
+        str += 'normal module...........:  {0:.3f} mm\n'.format(self.normal_module * 10)
+        str += 'pressure angle............:  {0:.3f} deg\n'.format(math.degrees(self.pressure_angle))
+        str += 'normal pressure angle:  {0:.3f} deg\n'.format(math.degrees(self.normal_pressure_angle))
+        str += '\n'
+        return str
 
 
     def rackLines(self, x, y, z, m, n, height, pAngle, hAngle, backlash, addendum, dedendum):
