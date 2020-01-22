@@ -378,9 +378,6 @@ class HelicalGear:
             involute.draw(sketch, 0, (i / self.tooth_count) * 2 * math.pi)
         # Base Circle
         sketch.sketchCurves.sketchCircles.addByCenterRadius(adsk.core.Point3D.create(0, 0, 0), self.root_diameter / 2)
-        # Outer diameter
-        if (self.internal_outside_diameter):
-            sketch.sketchCurves.sketchCircles.addByCenterRadius(adsk.core.Point3D.create(0, 0, 0), self.internal_outside_diameter)
         # Sweep path
         if (self.herringbone):
             line1 = sketch.sketchCurves.sketchLines.addByTwoPoints(adsk.core.Point3D.create(0, 0, 0),
@@ -392,11 +389,8 @@ class HelicalGear:
                                                                    adsk.core.Point3D.create(0, 0, self.width))
         sketch.isComputeDeferred = False
         profs = adsk.core.ObjectCollection.create()
-        if (self.internal_outside_diameter):
-            profs.add(sketch.profiles[-1])
-        else:
-            for prof in sketch.profiles:
-                profs.add(prof)
+        for prof in sketch.profiles:
+            profs.add(prof)
         if (self.herringbone):
             path1 = component.features.createPath(line1)
             sweepInput = component.features.sweepFeatures.createInput(profs, path1,
@@ -412,7 +406,7 @@ class HelicalGear:
             sweepInput.twistAngle = adsk.core.ValueInput.createByReal(-self.t_for(self.width / 2))
             if (base_feature):
                 sweepInput.targetBaseFeature = base_feature
-            sweepFeature = component.features.sweepFeatures.add(sweepInput)
+            gearBody = sweepFeature = component.features.sweepFeatures.add(sweepInput).bodies.item(0)
         else:
             path1 = component.features.createPath(line1)
             sweepInput = component.features.sweepFeatures.createInput(profs, path1,
@@ -420,7 +414,27 @@ class HelicalGear:
             sweepInput.twistAngle = adsk.core.ValueInput.createByReal(self.t_for(self.width))
             if (base_feature):
                 sweepInput.targetBaseFeature = base_feature
-            sweepFeature = component.features.sweepFeatures.add(sweepInput)
+            gearBody = sweepFeature = component.features.sweepFeatures.add(sweepInput).bodies.item(0)
+        if(self.internal_outside_diameter):
+            # The temporaryBRep manager is a tool for creating 3d geometry without the use of features
+            # The word temporary referrs to the geometry being created being virtual, but It can easily be converted to actual geometry
+            tbm = adsk.fusion.TemporaryBRepManager.get()
+            if(self.herringbone):
+                cyl = cylinder = tbm.createCylinderOrCone(adsk.core.Point3D.create(0, 0, -self.width/2),
+                                                        self.internal_outside_diameter,
+                                                        adsk.core.Point3D.create(0, 0, self.width/2),
+                                                        self.internal_outside_diameter)
+            else:
+                cyl = cylinder = tbm.createCylinderOrCone(adsk.core.Point3D.create(0, 0, 0),
+                                                        self.internal_outside_diameter,
+                                                        adsk.core.Point3D.create(0, 0, self.width),
+                                                        self.internal_outside_diameter)
+            tbm.booleanOperation(cyl, tbm.copy(gearBody), 0)
+            if(base_feature):
+                component.bRepBodies.add(cyl, base_feature)
+            else:
+                component.bRepBodies.add(cyl)
+            gearBody.deleteMe()
         if (base_feature):
             base_feature.finishEdit()
 
@@ -567,9 +581,6 @@ class RackGear:
             boundaryFillInput.targetBaseFeature = base_feature
         boundaryFillInput.bRepCells.item(0).isSelected = True
         body = component.features.boundaryFillFeatures.add(boundaryFillInput).bodies.item(0)
-        print("BFill:")
-        print(time.time()-t)
-        t = time.time()
         # Creates a box to cut off angled ends
         obb = adsk.core.OrientedBoundingBox3D.create(adsk.core.Point3D.create(0, 0, 0),
                                                      adsk.core.Vector3D.create(1, 0, 0),
@@ -582,14 +593,13 @@ class RackGear:
         else:
             component.bRepBodies.add(box)
         body.deleteMe()
-        print("Bool:")
-        print(time.time()-t)
-
         # Deletes tooling bodies
         for b in tools:
             b.deleteMe()
         if (base_feature):
             base_feature.finishEdit()
+        # Adds "pitch diameter" line
+
 
 
 # Fires when the CommandDefinition gets executed.
