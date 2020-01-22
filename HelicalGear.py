@@ -546,37 +546,63 @@ class RackGear:
         else:
             base_feature = None
 
-        teeth = math.ceil((self.length + math.tan(self.helix_angle) * self.width) / (self.normal_module * math.pi))
+        teeth = math.ceil((self.length + 2 * math.tan(abs(self.helix_angle)) * self.width) / (self.normal_module * math.pi))
         # The temporaryBRep manager is a tool for creating 3d geometry without the use of features
         # The word temporary referrs to the geometry being created being virtual, but It can easily be converted to actual geometry
         tbm = adsk.fusion.TemporaryBRepManager.get()
         # Array to keep track of TempBRepBodies
         tempBRepBodies = []
         # Creates BRep wire object(s), representing edges in 3D space from an array of 3Dcurves
-        if (self.helix_angle < 0):
-            wireBody1, _ = tbm.createWireFromCurves(
-                self.rackLines(-self.length / 2 - math.tan(-self.helix_angle) * self.width, -self.width / 2, 0,
-                               self.normal_module, teeth, self.height, self.normal_pressure_angle, self.helix_angle,
-                               self.backlash, self.addendum, self.dedendum))
-            wireBody2, _ = tbm.createWireFromCurves(
-                self.rackLines(-self.length / 2, self.width / 2, 0, self.normal_module, teeth, self.height,
-                               self.normal_pressure_angle, self.helix_angle, self.backlash, self.addendum,
-                               self.dedendum))
+        if(self.herringbone):
+            wireBody1, _ = tbm.createWireFromCurves(self.rackLines(
+                -self.length/2 - math.tan(abs(self.helix_angle)) * self.width/2,
+                -self.width / 2,
+                0,
+                self.normal_module, teeth, self.height, self.normal_pressure_angle, self.helix_angle,
+                self.backlash, self.addendum, self.dedendum
+                ))
+            wireBody2, _ = tbm.createWireFromCurves(self.rackLines(
+                -self.length/2 - (math.tan(abs(self.helix_angle)) + math.tan(self.helix_angle)) * self.width/2,
+                0,
+                0,
+                self.normal_module, teeth, self.height, self.normal_pressure_angle, self.helix_angle,
+                self.backlash, self.addendum,
+                self.dedendum
+                ))
+            wireBody3, _ = tbm.createWireFromCurves(self.rackLines(
+                -self.length/2 - math.tan(abs(self.helix_angle)) * self.width/2,
+                self.width / 2,
+                0,
+                self.normal_module, teeth, self.height, self.normal_pressure_angle, self.helix_angle,
+                self.backlash, self.addendum, self.dedendum
+                ))
         else:
-            wireBody1, _ = tbm.createWireFromCurves(
-                self.rackLines(-self.length / 2, -self.width / 2, 0, self.normal_module, teeth, self.height,
-                               self.normal_pressure_angle, self.helix_angle, self.backlash, self.addendum,
-                               self.dedendum))
-            wireBody2, _ = tbm.createWireFromCurves(
-                self.rackLines(-self.length / 2 - math.tan(self.helix_angle) * self.width, self.width / 2, 0,
-                               self.normal_module, teeth, self.height, self.normal_pressure_angle, self.helix_angle,
-                               self.backlash, self.addendum, self.dedendum))
+            wireBody1, _ = tbm.createWireFromCurves(self.rackLines(
+                -self.length/2 - math.tan(abs(self.helix_angle)) * self.width,
+                -self.width / 2,
+                0,
+                self.normal_module, teeth, self.height, self.normal_pressure_angle, self.helix_angle,
+                self.backlash, self.addendum, self.dedendum
+                ))
+            wireBody2, _ = tbm.createWireFromCurves(self.rackLines(
+                -self.length/2 - (math.tan(abs(self.helix_angle)) + math.tan(self.helix_angle)) * self.width,
+                self.width / 2,
+                0,
+                self.normal_module, teeth, self.height, self.normal_pressure_angle, self.helix_angle,
+                self.backlash, self.addendum,
+                self.dedendum
+                ))
 
         # Creates the planar end caps.
         tempBRepBodies.append(tbm.createFaceFromPlanarWires([wireBody1]))
-        tempBRepBodies.append(tbm.createFaceFromPlanarWires([wireBody2]))
+        if(self.herringbone):
+            tempBRepBodies.append(tbm.createFaceFromPlanarWires([wireBody3]))
+        else:
+            tempBRepBodies.append(tbm.createFaceFromPlanarWires([wireBody2]))
         # Creates the ruled surface connectiong the two end caps
         tempBRepBodies.append(tbm.createRuledSurface(wireBody1.wires.item(0), wireBody2.wires.item(0)))
+        if(self.herringbone):
+            tempBRepBodies.append(tbm.createRuledSurface(wireBody2.wires.item(0), wireBody3.wires.item(0)))
         # Turns surfaces into real BRep so they can be boundary filled
         t = time.time()
         tools = adsk.core.ObjectCollection.create()
