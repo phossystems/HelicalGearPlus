@@ -435,6 +435,17 @@ class HelicalGear:
             else:
                 component.bRepBodies.add(cyl)
             gearBody.deleteMe()
+        # Delete tooth sketch for performance
+        sketch.deleteMe()
+        # Add pitch diameter sketch
+        pitch_diameter_sketch = component.sketches.add(component.xYConstructionPlane)
+        pitch_diameter_sketch.name = "PD: {0:.3f}mm".format(self.pitch_diameter * 10)
+        if(self.herringbone):
+            pitch_diameter_circle = pitch_diameter_sketch.sketchCurves.sketchCircles.addByCenterRadius(adsk.core.Point3D.create(0,0,0), self.pitch_diameter/2)
+        else:
+            pitch_diameter_circle = pitch_diameter_sketch.sketchCurves.sketchCircles.addByCenterRadius(adsk.core.Point3D.create(0,0,self.width/2), self.pitch_diameter/2)
+        pitch_diameter_circle.isConstruction = True
+        pitch_diameter_circle.isFixed = True
         if (base_feature):
             base_feature.finishEdit()
 
@@ -599,6 +610,14 @@ class RackGear:
         if (base_feature):
             base_feature.finishEdit()
         # Adds "pitch diameter" line
+        pitch_diameter_sketch = component.sketches.add(component.xYConstructionPlane)
+        pitch_diameter_sketch.name = "Pitch Diameter Line"
+        pitch_diameter_line = pitch_diameter_sketch.sketchCurves.sketchLines.addByTwoPoints(
+            adsk.core.Point3D.create(-self.length/2, 0, 0),
+            adsk.core.Point3D.create(self.length/2, 0, 0)
+        )
+        pitch_diameter_line.isFixed = True
+        pitch_diameter_line.isConstruction = True
 
 
 
