@@ -395,7 +395,7 @@ class HelicalGear:
             path1 = component.features.createPath(line1)
             sweepInput = component.features.sweepFeatures.createInput(profs, path1,
                                                                       adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
-            sweepInput.twistAngle = adsk.core.ValueInput.createByReal(self.t_for(self.width / 2))
+            sweepInput.twistAngle = adsk.core.ValueInput.createByReal(-self.t_for(self.width / 2))
             if (base_feature):
                 sweepInput.targetBaseFeature = base_feature
             sweepFeature = component.features.sweepFeatures.add(sweepInput)
@@ -403,7 +403,7 @@ class HelicalGear:
             path2 = component.features.createPath(line2)
             sweepInput = component.features.sweepFeatures.createInput(profs, path2,
                                                                       adsk.fusion.FeatureOperations.JoinFeatureOperation)
-            sweepInput.twistAngle = adsk.core.ValueInput.createByReal(-self.t_for(self.width / 2))
+            sweepInput.twistAngle = adsk.core.ValueInput.createByReal(self.t_for(self.width / 2))
             if (base_feature):
                 sweepInput.targetBaseFeature = base_feature
             gearBody = sweepFeature = component.features.sweepFeatures.add(sweepInput).bodies.item(0)
@@ -411,7 +411,7 @@ class HelicalGear:
             path1 = component.features.createPath(line1)
             sweepInput = component.features.sweepFeatures.createInput(profs, path1,
                                                                       adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
-            sweepInput.twistAngle = adsk.core.ValueInput.createByReal(self.t_for(self.width))
+            sweepInput.twistAngle = adsk.core.ValueInput.createByReal(-self.t_for(self.width))
             if (base_feature):
                 sweepInput.targetBaseFeature = base_feature
             gearBody = sweepFeature = component.features.sweepFeatures.add(sweepInput).bodies.item(0)
@@ -608,14 +608,14 @@ class RackGear:
         # Creates BRep wire object(s), representing edges in 3D space from an array of 3Dcurves
         if(self.herringbone):
             wireBody1, _ = tbm.createWireFromCurves(self.rackLines(
-                -self.length/2 - math.tan(abs(self.helix_angle)) * self.width/2,
+                -self.length/2 - (math.tan(abs(self.helix_angle)) + math.tan(self.helix_angle)) * self.width/2,
                 -self.width / 2,
                 0,
                 self.normal_module, teeth, self.height, self.normal_pressure_angle, self.helix_angle,
                 self.backlash, self.addendum, self.dedendum
                 ))
             wireBody2, _ = tbm.createWireFromCurves(self.rackLines(
-                -self.length/2 - (math.tan(abs(self.helix_angle)) + math.tan(self.helix_angle)) * self.width/2,
+                -self.length/2 - math.tan(abs(self.helix_angle)) * self.width/2,
                 0,
                 0,
                 self.normal_module, teeth, self.height, self.normal_pressure_angle, self.helix_angle,
@@ -623,7 +623,7 @@ class RackGear:
                 self.dedendum
                 ))
             wireBody3, _ = tbm.createWireFromCurves(self.rackLines(
-                -self.length/2 - math.tan(abs(self.helix_angle)) * self.width/2,
+                -self.length/2 - (math.tan(abs(self.helix_angle)) + math.tan(self.helix_angle)) * self.width/2,
                 self.width / 2,
                 0,
                 self.normal_module, teeth, self.height, self.normal_pressure_angle, self.helix_angle,
@@ -631,14 +631,14 @@ class RackGear:
                 ))
         else:
             wireBody1, _ = tbm.createWireFromCurves(self.rackLines(
-                -self.length/2 - math.tan(abs(self.helix_angle)) * self.width,
+                -self.length/2 - (math.tan(abs(self.helix_angle)) + math.tan(self.helix_angle)) * self.width,
                 -self.width / 2,
                 0,
                 self.normal_module, teeth, self.height, self.normal_pressure_angle, self.helix_angle,
                 self.backlash, self.addendum, self.dedendum
                 ))
             wireBody2, _ = tbm.createWireFromCurves(self.rackLines(
-                -self.length/2 - (math.tan(abs(self.helix_angle)) + math.tan(self.helix_angle)) * self.width,
+                -self.length/2 - math.tan(abs(self.helix_angle)) * self.width,
                 self.width / 2,
                 0,
                 self.normal_module, teeth, self.height, self.normal_pressure_angle, self.helix_angle,
