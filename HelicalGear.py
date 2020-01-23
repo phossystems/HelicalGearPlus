@@ -277,7 +277,7 @@ class HelicalGear:
         str += 'pressure angle............:  {0:.3f} deg\n'.format(math.degrees(self.pressure_angle))
         str += 'normal pressure angle:  {0:.3f} deg\n'.format(math.degrees(self.normal_pressure_angle))
         str += '\n'
-        if(self.helix_angle != 0):
+        if (self.helix_angle != 0):
             str += 'length per revolution..:  {0:.3f} mm\n'.format(abs(self.vertical_loop_seperation) * 10)
             str += '\n'
         return str
@@ -333,7 +333,6 @@ class HelicalGear:
         gear.width = width
         gear.herringbone = herringbone
         gear.internal_outside_diameter = internal_outside_diameter
-
 
         gear.normal_module = radial_module * math.cos(gear.helix_angle)
         gear.normal_pressure_angle = math.atan(math.tan(radial_pressure_angle) * math.cos(gear.helix_angle))
@@ -415,22 +414,22 @@ class HelicalGear:
             if (base_feature):
                 sweepInput.targetBaseFeature = base_feature
             gearBody = sweepFeature = component.features.sweepFeatures.add(sweepInput).bodies.item(0)
-        if(self.internal_outside_diameter):
+        if (self.internal_outside_diameter):
             # The temporaryBRep manager is a tool for creating 3d geometry without the use of features
             # The word temporary referrs to the geometry being created being virtual, but It can easily be converted to actual geometry
             tbm = adsk.fusion.TemporaryBRepManager.get()
-            if(self.herringbone):
-                cyl = cylinder = tbm.createCylinderOrCone(adsk.core.Point3D.create(0, 0, -self.width/2),
-                                                        self.internal_outside_diameter,
-                                                        adsk.core.Point3D.create(0, 0, self.width/2),
-                                                        self.internal_outside_diameter)
+            if (self.herringbone):
+                cyl = cylinder = tbm.createCylinderOrCone(adsk.core.Point3D.create(0, 0, -self.width / 2),
+                                                          self.internal_outside_diameter,
+                                                          adsk.core.Point3D.create(0, 0, self.width / 2),
+                                                          self.internal_outside_diameter)
             else:
                 cyl = cylinder = tbm.createCylinderOrCone(adsk.core.Point3D.create(0, 0, 0),
-                                                        self.internal_outside_diameter,
-                                                        adsk.core.Point3D.create(0, 0, self.width),
-                                                        self.internal_outside_diameter)
+                                                          self.internal_outside_diameter,
+                                                          adsk.core.Point3D.create(0, 0, self.width),
+                                                          self.internal_outside_diameter)
             tbm.booleanOperation(cyl, tbm.copy(gearBody), 0)
-            if(base_feature):
+            if (base_feature):
                 component.bRepBodies.add(cyl, base_feature)
             else:
                 component.bRepBodies.add(cyl)
@@ -440,10 +439,12 @@ class HelicalGear:
         # Add pitch diameter sketch
         pitch_diameter_sketch = component.sketches.add(component.xYConstructionPlane)
         pitch_diameter_sketch.name = "PD: {0:.3f}mm".format(self.pitch_diameter * 10)
-        if(self.herringbone):
-            pitch_diameter_circle = pitch_diameter_sketch.sketchCurves.sketchCircles.addByCenterRadius(adsk.core.Point3D.create(0,0,0), self.pitch_diameter/2)
+        if (self.herringbone):
+            pitch_diameter_circle = pitch_diameter_sketch.sketchCurves.sketchCircles.addByCenterRadius(
+                adsk.core.Point3D.create(0, 0, 0), self.pitch_diameter / 2)
         else:
-            pitch_diameter_circle = pitch_diameter_sketch.sketchCurves.sketchCircles.addByCenterRadius(adsk.core.Point3D.create(0,0,self.width/2), self.pitch_diameter/2)
+            pitch_diameter_circle = pitch_diameter_sketch.sketchCurves.sketchCircles.addByCenterRadius(
+                adsk.core.Point3D.create(0, 0, self.width / 2), self.pitch_diameter / 2)
         pitch_diameter_circle.isConstruction = True
         pitch_diameter_circle.isFixed = True
         if (base_feature):
@@ -478,7 +479,6 @@ class RackGear:
 
         return gear
 
-    
     @staticmethod
     def create_in_radial_system(radial_module, radial_pressure_angle, helix_angle, herringbone, length, width, height,
                                 backlash=0, addendum=1, dedendum=1.25):
@@ -502,7 +502,6 @@ class RackGear:
 
         return gear
 
-
     def __str__(self):
         str = ''
         str += '\n'
@@ -512,7 +511,6 @@ class RackGear:
         str += 'normal pressure angle:  {0:.3f} deg\n'.format(math.degrees(self.normal_pressure_angle))
         str += '\n'
         return str
-
 
     @property
     def is_valid(self):
@@ -529,7 +527,6 @@ class RackGear:
         valid &= math.radians(-90) < self.helix_angle < math.radians(90)
         valid &= abs(self.backlash_angle) / 4 < self.tooth_arc_angle / 8
         return valid
-
 
     def rackLines(self, x, y, z, m, n, height, pAngle, hAngle, backlash, addendum, dedendum):
         strech = 1 / math.cos(hAngle)
@@ -599,62 +596,63 @@ class RackGear:
         else:
             base_feature = None
 
-        teeth = math.ceil((self.length + 2 * math.tan(abs(self.helix_angle)) * self.width) / (self.normal_module * math.pi))
+        teeth = math.ceil(
+            (self.length + 2 * math.tan(abs(self.helix_angle)) * self.width) / (self.normal_module * math.pi))
         # The temporaryBRep manager is a tool for creating 3d geometry without the use of features
         # The word temporary referrs to the geometry being created being virtual, but It can easily be converted to actual geometry
         tbm = adsk.fusion.TemporaryBRepManager.get()
         # Array to keep track of TempBRepBodies
         tempBRepBodies = []
         # Creates BRep wire object(s), representing edges in 3D space from an array of 3Dcurves
-        if(self.herringbone):
+        if (self.herringbone):
             wireBody1, _ = tbm.createWireFromCurves(self.rackLines(
-                -self.length/2 - (math.tan(abs(self.helix_angle)) + math.tan(self.helix_angle)) * self.width/2,
+                -self.length / 2 - (math.tan(abs(self.helix_angle)) + math.tan(self.helix_angle)) * self.width / 2,
                 -self.width / 2,
                 0,
                 self.normal_module, teeth, self.height, self.normal_pressure_angle, self.helix_angle,
                 self.backlash, self.addendum, self.dedendum
-                ))
+            ))
             wireBody2, _ = tbm.createWireFromCurves(self.rackLines(
-                -self.length/2 - math.tan(abs(self.helix_angle)) * self.width/2,
+                -self.length / 2 - math.tan(abs(self.helix_angle)) * self.width / 2,
                 0,
                 0,
                 self.normal_module, teeth, self.height, self.normal_pressure_angle, self.helix_angle,
                 self.backlash, self.addendum,
                 self.dedendum
-                ))
+            ))
             wireBody3, _ = tbm.createWireFromCurves(self.rackLines(
-                -self.length/2 - (math.tan(abs(self.helix_angle)) + math.tan(self.helix_angle)) * self.width/2,
+                -self.length / 2 - (math.tan(abs(self.helix_angle)) + math.tan(self.helix_angle)) * self.width / 2,
                 self.width / 2,
                 0,
                 self.normal_module, teeth, self.height, self.normal_pressure_angle, self.helix_angle,
                 self.backlash, self.addendum, self.dedendum
-                ))
+            ))
         else:
             wireBody1, _ = tbm.createWireFromCurves(self.rackLines(
-                -self.length/2 - (math.tan(abs(self.helix_angle)) + math.tan(self.helix_angle)) * self.width,
+                -self.length / 2 - (math.tan(abs(self.helix_angle)) + math.tan(self.helix_angle)) * self.width,
                 -self.width / 2,
                 0,
                 self.normal_module, teeth, self.height, self.normal_pressure_angle, self.helix_angle,
                 self.backlash, self.addendum, self.dedendum
-                ))
+            ))
             wireBody2, _ = tbm.createWireFromCurves(self.rackLines(
-                -self.length/2 - math.tan(abs(self.helix_angle)) * self.width,
+                -self.length / 2 - math.tan(abs(self.helix_angle)) * self.width,
                 self.width / 2,
                 0,
                 self.normal_module, teeth, self.height, self.normal_pressure_angle, self.helix_angle,
                 self.backlash, self.addendum,
                 self.dedendum
-                ))
+            ))
 
         # Creates the planar end caps.
         tempBRepBodies.append(tbm.createFaceFromPlanarWires([wireBody1]))
-        if(self.herringbone):
+        if (self.herringbone):
             tempBRepBodies.append(tbm.createFaceFromPlanarWires([wireBody3]))
         else:
             tempBRepBodies.append(tbm.createFaceFromPlanarWires([wireBody2]))
         # Creates the ruled surface connectiong the two end caps
         tempBRepBodies.append(tbm.createRuledSurface(wireBody1.wires.item(0), wireBody2.wires.item(0)))
-        if(self.herringbone):
+        if (self.herringbone):
             tempBRepBodies.append(tbm.createRuledSurface(wireBody2.wires.item(0), wireBody3.wires.item(0)))
         # Turns surfaces into real BRep so they can be boundary filled
         t = time.time()
@@ -692,12 +690,11 @@ class RackGear:
         pitch_diameter_sketch = component.sketches.add(component.xYConstructionPlane)
         pitch_diameter_sketch.name = "Pitch Diameter Line"
         pitch_diameter_line = pitch_diameter_sketch.sketchCurves.sketchLines.addByTwoPoints(
-            adsk.core.Point3D.create(-self.length/2, 0, 0),
-            adsk.core.Point3D.create(self.length/2, 0, 0)
+            adsk.core.Point3D.create(-self.length / 2, 0, 0),
+            adsk.core.Point3D.create(self.length / 2, 0, 0)
         )
         pitch_diameter_line.isFixed = True
         pitch_diameter_line.isConstruction = True
-
 
 
 # Fires when the CommandDefinition gets executed.
@@ -748,51 +745,79 @@ class CommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
 
             viModule = tabSettings.children.addValueInput("VIModule", "Module", "mm",
                                                           adsk.core.ValueInput.createByReal(pers['VIModule']))
+            viModule.tooltip = "Module"
+            viModule.tooltipDescription = "The module is the fundamental unit of size for a gear.\nMatching gears must have the same module."
 
             viHelixAngle = tabSettings.children.addValueInput("VIHelixAngle", "Helix Angle", "deg",
                                                               adsk.core.ValueInput.createByReal(pers['VIHelixAngle']))
+            viHelixAngle.tooltip = "Helix Angle"
+            viHelixAngle.tooltipDescription = "Angle of tooth twist.\n0 degrees produces a standard spur gear.\nHigh angles produce worm gears\nNegative angles produce left handed gears"
+            viHelixAngle.toolClipFilename = 'resources/captions/HelixAngle.png'
 
             isTeeth = tabSettings.children.addIntegerSpinnerCommandInput("ISTeeth", "Teeth", 1, 99999, 1,
                                                                          pers['ISTeeth'])
             isTeeth.isVisible = pers['DDType'] != "Rack Gear"
+            isTeeth.tooltip = "Number of Teeth"
+            isTeeth.tooltipDescription = "The number of teeth a gear has.\nGears with higher helix angle can have less teeth.\nFor example mots worm gears have only one."
 
             viWidth = tabSettings.children.addValueInput("VIWidth", "Gear Width", "mm",
                                                          adsk.core.ValueInput.createByReal(pers['VIWidth']))
+            viWidth.tooltip = "Gear Width"
+            viWidth.tooltipDescription = "Represenets the width or thickness of a gear"
 
             viHeight = tabSettings.children.addValueInput("VIHeight", "Height", "mm",
                                                           adsk.core.ValueInput.createByReal(pers['VIHeight']))
+            viHeight.tooltip = "Rack Height"
+            viHeight.tooltipDescription = "Represents the distance from the bottom to the pitch diameter.\nDoes not include Addendum."
             viHeight.isVisible = pers['DDType'] == "Rack Gear"
 
             viLength = tabSettings.children.addValueInput("VILength", "Length", "mm",
                                                           adsk.core.ValueInput.createByReal(pers['VILength']))
+            viLength.tooltip = "Rack Length"
             viLength.isVisible = pers['DDType'] == "Rack Gear"
 
             viDiameter = tabSettings.children.addValueInput("VIDiameter", "Outside Diameter", "mm",
                                                             adsk.core.ValueInput.createByReal(pers['VIDiameter']))
+            viDiameter.tooltip = "Internal Gear Outside Diameter"
             viDiameter.isVisible = pers['DDType'] == "Internal Gear"
 
             bvHerringbone = tabSettings.children.addBoolValueInput("BVHerringbone", "Herringbone", True, "",
                                                                    pers['BVHerringbone'])
+            bvHerringbone.toolClipFilename = 'resources/captions/Herringbone.png'
+            bvHerringbone.tooltip = "Herringbone"
+            bvHerringbone.tooltipDescription = "Generates gear as herringbone."
 
             bvPreview = tabSettings.children.addBoolValueInput("BVPreview", "Preview", True, "", pers['BVPreview'])
+            bvPreview.tooltip = "Preview"
+            bvPreview.tooltipDescription = "Generates a real-time preview of the gear.\nThis makes changes slower as the gear has to re-generate."
 
             # Advanced command inputs
             ddStandard = tabAdvanced.children.addDropDownCommandInput("DDStandard", "Standard", 0)
             ddStandard.listItems.add("Normal", pers['DDStandard'] == "Normal", "resources/normal")
             ddStandard.listItems.add("Radial", pers['DDStandard'] == "Radial", "resources/radial")
+            ddStandard.toolClipFilename = 'resources/captions/NormalVsRadial.png'
+            ddStandard.tooltipDescription = "Normal System: Pressure angle and module are defined relative to the normal of the tooth.\n\nRadial System: Pressure angle and module are defined relative to the plane of rotation."
 
             viPressureAngle = tabAdvanced.children.addValueInput("VIPressureAngle", "Pressure Angle", "deg",
                                                                  adsk.core.ValueInput.createByReal(
                                                                      pers['VIPressureAngle']))
+            viPressureAngle.tooltip = "Pressure Angle"
+            viPressureAngle.tooltipDescription = "Represent the angle of the line of contact.\nStandart values are: 20°, 14.5° "
 
             viBacklash = tabAdvanced.children.addValueInput("VIBacklash", "Backlash", "mm",
                                                             adsk.core.ValueInput.createByReal(pers['VIBacklash']))
+            viBacklash.tooltip = "Backlash"
+            viBacklash.tooltipDescription = "Represents the distance between two mating teeth at the correct spacing.\nThis value is halved as it should be distributed between both gears."
 
             viAddendum = tabAdvanced.children.addValueInput("VIAddendum", "Addendum", "",
                                                             adsk.core.ValueInput.createByReal(pers['VIAddendum']))
+            viAddendum.tooltip = "Addendum"
+            viAddendum.tooltipDescription = "Represents the factor that the tooth extends past the pitch diameter."
 
             viDedendum = tabAdvanced.children.addValueInput("VIDedendum", "Dedendum", "",
                                                             adsk.core.ValueInput.createByReal(pers['VIDedendum']))
+            viDedendum.tooltip = "Dedendum"
+            viDedendum.tooltipDescription = "Represents the factor that the root diameter is below the pitch diameter."
             # Properties
             tbProperties = tabProperties.children.addTextBoxCommandInput("TBProperties", "", "Lorem", 5, True)
 
@@ -811,7 +836,8 @@ class CommandExecuteHandler(adsk.core.CommandEventHandler):
         try:
             # Saves inputs to dict for persistence
             preserve_inputs(args.command.commandInputs, pers)
-            generate_gear(args.command.commandInputs).model_gear(adsk.core.Application.get().activeProduct.rootComponent)
+            generate_gear(args.command.commandInputs).model_gear(
+                adsk.core.Application.get().activeProduct.rootComponent)
         except:
             print(traceback.format_exc())
 
@@ -825,9 +851,10 @@ class CommandExecutePreviewHandler(adsk.core.CommandEventHandler):
 
     def notify(self, args):
         try:
-            if(args.command.commandInputs.itemById("BVPreview").value):
+            if (args.command.commandInputs.itemById("BVPreview").value):
                 preserve_inputs(args.command.commandInputs, pers)
-                generate_gear(args.command.commandInputs).model_gear(adsk.core.Application.get().activeProduct.rootComponent)
+                generate_gear(args.command.commandInputs).model_gear(
+                    adsk.core.Application.get().activeProduct.rootComponent)
                 args.isValidResult = True
             else:
                 args.isValidResult = False
@@ -852,7 +879,7 @@ class CommandInputChangedHandler(adsk.core.InputChangedEventHandler):
                 args.inputs.itemById("VILength").isVisible = gearType == "Rack Gear"
                 args.inputs.itemById("VIDiameter").isVisible = gearType == "Internal Gear"
             # Updates Information
-            if(args.inputs.itemById("TabProperties") and args.inputs.itemById("TabProperties").isActive):
+            if (args.inputs.itemById("TabProperties") and args.inputs.itemById("TabProperties").isActive):
                 gear = generate_gear(args.inputs)
                 tbProperties = args.inputs.itemById("TBProperties")
                 tbProperties.numRows = len(str(gear).split('\n'))
@@ -899,7 +926,7 @@ def generate_gear(commandInputs):
     standard = commandInputs.itemById("DDStandard").selectedItem.name
 
     if (gearType == "Rack Gear"):
-        if(standard == "Normal"):
+        if (standard == "Normal"):
             gear = RackGear.create_in_normal_system(
                 commandInputs.itemById("VIModule").value,
                 commandInputs.itemById("VIPressureAngle").value,
@@ -927,7 +954,7 @@ def generate_gear(commandInputs):
             )
     else:
         if (gearType == "External Gear"):
-            if(standard == "Normal"):
+            if (standard == "Normal"):
                 gear = HelicalGear.create_in_normal_system(
                     commandInputs.itemById("ISTeeth").value,
                     commandInputs.itemById("VIModule").value,
@@ -952,7 +979,7 @@ def generate_gear(commandInputs):
                     commandInputs.itemById("BVHerringbone").value
                 )
         else:
-            if(standard == "Normal"):
+            if (standard == "Normal"):
                 gear = HelicalGear.create_in_normal_system(
                     commandInputs.itemById("ISTeeth").value,
                     commandInputs.itemById("VIModule").value,
@@ -992,6 +1019,8 @@ def run(context):
         if not cmdDef:
             cmdDef = commandDefinitions.addButtonDefinition(COMMAND_ID, COMMAND_NAME,
                                                             COMMAND_TOOLTIP, 'resources')
+            cmdDef.tooltip = "Generates external, inrernal & rack gears of any helix angle.\nThis includes regular sput gears as well as worm gears."
+            cmdDef.toolClipFilename = 'resources/captions/Gears.png'
         # Adds the commandDefinition to the toolbar
         for panel in TOOLBAR_PANELS:
             ui.allToolbarPanels.itemById(panel).controls.addCommand(cmdDef)
