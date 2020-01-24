@@ -22,7 +22,7 @@ pers = {
     'VIWidth': 1.0,
     'VIHeight': 0.8,
     'VILength': 10.0,
-    'VIDiameter': 4.0,
+    'VIDiameter': 8.0,
     'BVHerringbone': False,
     'BVPreview': False,
     'VIAddendum': 1,
@@ -249,11 +249,15 @@ class HelicalGear:
         valid &= self.whole_depth > 0
         valid &= self.addendum > 0
         valid &= self.pressure_angle >= 0
-        valid &= self.pressure_angle < math.radians(90)
+        valid &= self.pressure_angle < math.radians(80)
+        valid &= self.normal_pressure_angle >= 0
+        valid &= self.normal_pressure_angle < math.radians(80)
         valid &= self.module > 0
         valid &= self.tooth_count > 0
         valid &= math.radians(-90) < self.helix_angle < math.radians(90)
         valid &= abs(self.backlash_angle) / 4 < self.tooth_arc_angle / 8
+        if(self.internal_outside_diameter):
+            valid &= self.internal_outside_diameter > self.outside_diameter
         return valid
 
     @property
@@ -420,14 +424,14 @@ class HelicalGear:
             tbm = adsk.fusion.TemporaryBRepManager.get()
             if (self.herringbone):
                 cyl = cylinder = tbm.createCylinderOrCone(adsk.core.Point3D.create(0, 0, -self.width / 2),
-                                                          self.internal_outside_diameter,
+                                                          self.internal_outside_diameter/2,
                                                           adsk.core.Point3D.create(0, 0, self.width / 2),
-                                                          self.internal_outside_diameter)
+                                                          self.internal_outside_diameter/2)
             else:
                 cyl = cylinder = tbm.createCylinderOrCone(adsk.core.Point3D.create(0, 0, 0),
-                                                          self.internal_outside_diameter,
+                                                          self.internal_outside_diameter/2,
                                                           adsk.core.Point3D.create(0, 0, self.width),
-                                                          self.internal_outside_diameter)
+                                                          self.internal_outside_diameter/2)
             tbm.booleanOperation(cyl, tbm.copy(gearBody), 0)
             if (base_feature):
                 component.bRepBodies.add(cyl, base_feature)
@@ -520,12 +524,14 @@ class RackGear:
         valid &= self.addendum >= 0
         valid &= self.dedendum >= 0
         valid &= self.addendum + self.dedendum > 0
+        '''
         valid &= self.pressure_angle >= 0
         valid &= self.pressure_angle < math.radians(90)
         valid &= self.module > 0
         valid &= self.tooth_count > 0
         valid &= math.radians(-90) < self.helix_angle < math.radians(90)
         valid &= abs(self.backlash_angle) / 4 < self.tooth_arc_angle / 8
+        '''
         return valid
 
     def rackLines(self, x, y, z, m, n, height, pAngle, hAngle, backlash, addendum, dedendum):
@@ -1005,6 +1011,8 @@ def generate_gear(commandInputs):
                     commandInputs.itemById("BVHerringbone").value,
                     commandInputs.itemById("VIDiameter").value
                 )
+
+    print(gear.is_valid)
     return gear
 
 
