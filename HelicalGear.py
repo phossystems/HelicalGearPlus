@@ -544,30 +544,30 @@ class RackGear:
             # Root
             lines.append(
                 adsk.core.Line3D.create(adsk.core.Point3D.create(x + ((i * P)) * strech, y, z - dedendum),
-                                        adsk.core.Point3D.create(x + ((i * P) + (P / 2) + backlash/4 - (
+                                        adsk.core.Point3D.create(x + ((i * P) + (P / 2) + backlash/2 - (
                                                 math.tan(pAngle) * 2 * dedendum)) * strech, y, z - dedendum))
             )
             # Left Edge
             lines.append(
                 adsk.core.Line3D.create(adsk.core.Point3D.create(
-                    x + ((i * P) + (P / 2) + backlash/4 - (math.tan(pAngle) * 2 * dedendum)) * strech, y, z - dedendum),
-                    adsk.core.Point3D.create(x + ((i * P) + (P / 2) + backlash/4 - (
+                    x + ((i * P) + (P / 2) + backlash/2 - (math.tan(pAngle) * 2 * dedendum)) * strech, y, z - dedendum),
+                    adsk.core.Point3D.create(x + ((i * P) + (P / 2) + backlash/2 - (
                             math.tan(pAngle) * (dedendum - addendum))) * strech, y,
                                              z + addendum))
             )
             # Tip
             lines.append(
                 adsk.core.Line3D.create(adsk.core.Point3D.create(
-                    x + ((i * P) + (P / 2) + backlash/4 - (math.tan(pAngle) * (dedendum - addendum))) * strech, y,
+                    x + ((i * P) + (P / 2) + backlash/2 - (math.tan(pAngle) * (dedendum - addendum))) * strech, y,
                     z + addendum),
-                    adsk.core.Point3D.create(x + ((i * P) + P - backlash/4 - (
+                    adsk.core.Point3D.create(x + ((i * P) + P - (
                             math.tan(pAngle) * (dedendum + addendum))) * strech, y,
                                              z + addendum))
             )
             # Right Edge
             lines.append(
                 adsk.core.Line3D.create(adsk.core.Point3D.create(
-                    x + ((i * P) + P - backlash/4 - (math.tan(pAngle) * (dedendum + addendum))) * strech, y,
+                    x + ((i * P) + P - (math.tan(pAngle) * (dedendum + addendum))) * strech, y,
                     z + addendum),
                     adsk.core.Point3D.create(x + ((i * P) + P) * strech, y, z - dedendum))
             )
