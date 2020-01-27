@@ -538,6 +538,13 @@ class RackGear:
         strech = 1 / math.cos(hAngle)
         P = m * math.pi
 
+        print((1/4) * math.pi * (1/math.tan(pAngle)))
+        print(((1/4) * math.pi * (1/math.tan(pAngle)))*m)
+
+        addendum = min(addendum, (-(1/4)*(backlash-P)*(1/math.tan(pAngle)))-0.0001 )
+        dedendum = min(dedendum, -(1/4)*(-backlash-P)*(1/math.tan(pAngle))-0.0001 )
+        dedendum = min(dedendum, height-0.0001)
+
         lines = []
 
         for i in range(n):
@@ -679,7 +686,7 @@ class RackGear:
         obb = adsk.core.OrientedBoundingBox3D.create(adsk.core.Point3D.create(0, 0, 0),
                                                      adsk.core.Vector3D.create(1, 0, 0),
                                                      adsk.core.Vector3D.create(0, 1, 0),
-                                                     self.length, self.width * 2, self.height * 2)
+                                                     self.length, self.width * 2, (self.height + self.addendum)*2)
         box = tbm.createBox(obb)
         tbm.booleanOperation(box, tbm.copy(body), 1)
         if (base_feature):
