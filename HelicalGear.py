@@ -240,25 +240,45 @@ class HelicalGear:
         return 2 / q if q != 0 else float('inf')
 
     @property
-    def is_valid(self):
-        valid = self.circular_pitch > 0
-        valid &= self.base_diameter > 0
-        valid &= self.pitch_diameter > 0
-        valid &= self.root_diameter > 0.03
-        valid &= self.outside_diameter > 0
-        valid &= self.whole_depth > 0
-        valid &= self.addendum > 0
-        valid &= self.pressure_angle >= 0
-        valid &= self.pressure_angle < math.radians(80)
-        valid &= self.normal_pressure_angle >= 0
-        valid &= self.normal_pressure_angle < math.radians(80)
-        valid &= self.module > 0
-        valid &= self.tooth_count > 0
-        valid &= math.radians(-90) < self.helix_angle < math.radians(90)
-        valid &= abs(self.backlash_angle) / 4 < self.tooth_arc_angle / 8
+    def is_invalid(self):
+        if(self.width <= 0):
+            return "Width too low"
+        if(math.radians(-90) > self.helix_angle):
+            return "Helix angle too low"
+        if(math.radians(90) < self.helix_angle):
+            return "Helix angle too high"
+        if(self.module <= 0):
+            return "Module to low"
+        if(self.addendum <= 0):
+            return "Addendum too low"
+        if(self.whole_depth <= 0):
+            return "Dedendum too low"
+        if(self.pressure_angle < 0):
+            return "Pressure angle too low"
+        if(self.pressure_angle > math.radians(80)):
+            return "Pressure angle too high"
+        if(self.normal_pressure_angle < 0):
+            return "Pressure angle too low"
+        if(self.normal_pressure_angle > math.radians(80)):
+            return "Pressure angle too high"
+        if(self.tooth_count <= 0):
+            return "Too few teeth"
+        if(abs(self.backlash_angle) / 4 >= self.tooth_arc_angle / 8):
+            return "Backlash too high"
         if(self.internal_outside_diameter):
-            valid &= self.internal_outside_diameter > self.outside_diameter
-        return valid
+            if(self.internal_outside_diameter <= self.outside_diameter):
+                return "Outside diameter too low"
+        if(self.circular_pitch <= 0):
+            return "Invalid: circular_pitch"
+        if(self.base_diameter <= 0):
+            return "Invalid Gear"
+        if(self.pitch_diameter <= 0):
+            return "Invalid Gear"
+        if(self.root_diameter <= 0.03):
+            return "Invalid Gear"
+        if(self.outside_diameter <= 0):
+            return "Invalid Gear"
+        return False
 
     @property
     def vertical_loop_seperation(self):
@@ -290,9 +310,9 @@ class HelicalGear:
     def create_in_normal_system(tooth_count, normal_module, normal_pressure_angle, helix_angle, backlash=0, addendum=1,
                                 dedendum=1.25, width=1, herringbone=False, internal_outside_diameter=None):
         tooth_count = tooth_count if tooth_count > 0 else 1
-        normal_module = normal_module if normal_module > 0 else 1e-10
-        normal_pressure_angle = normal_pressure_angle if 0 <= normal_pressure_angle < math.radians(90) else 0
-        helix_angle = helix_angle if math.radians(-90) < helix_angle < math.radians(90) else 0
+        #normal_module = normal_module if normal_module > 0 else 1e-10
+        #normal_pressure_angle = normal_pressure_angle if 0 <= normal_pressure_angle < math.radians(90) else 0
+        #helix_angle = helix_angle if math.radians(-90) < helix_angle < math.radians(90) else 0
 
         gear = HelicalGear()
         gear.backlash = backlash
@@ -517,30 +537,37 @@ class RackGear:
         return str
 
     @property
-    def is_valid(self):
-        valid = self.length > 0
-        valid &= self.width > 0
-        valid &= self.height > self.dedendum
-        valid &= self.addendum >= 0
-        valid &= self.dedendum >= 0
-        valid &= self.addendum + self.dedendum > 0
-        '''
-        valid &= self.pressure_angle >= 0
-        valid &= self.pressure_angle < math.radians(90)
-        valid &= self.module > 0
-        valid &= self.tooth_count > 0
-        valid &= math.radians(-90) < self.helix_angle < math.radians(90)
-        valid &= abs(self.backlash_angle) / 4 < self.tooth_arc_angle / 8
-        '''
-        return valid
+    def is_invalid(self):
+        if(self.length <= 0):
+            return "Length too low"
+        if(self.width <= 0):
+            return "Width too low"
+        if(self.height <= 0):
+            return "Height too low"
+        if(self.module <= 0):
+            return "Module too low"
+        if(self.addendum < 0):
+            return "Addendum too low"
+        if(self.dedendum < 0):
+            return "Dedendum too low"
+        if(self.addendum + self.dedendum <= 0):
+            return "Addendum too low"
+        if( not (0 < self.pressure_angle < math.radians(90))):
+            return "Invalid pressure angle"
+        if( not (math.radians(-90) < self.helix_angle < math.radians(90))):
+            return "Invalid helix angle"
+        # Not actually the limit but close enough
+        if((-3 * self.normal_module) > self.backlash):
+            return "Backlash too low"
+        if(self.backlash > (3 * self.normal_module)):
+            return "Backlash too high" 
+        return False
 
     def rackLines(self, x, y, z, m, n, height, pAngle, hAngle, backlash, addendum, dedendum):
         strech = 1 / math.cos(hAngle)
         P = m * math.pi
 
-        print((1/4) * math.pi * (1/math.tan(pAngle)))
-        print(((1/4) * math.pi * (1/math.tan(pAngle)))*m)
-
+        #Clamps addendum and dedendum
         addendum = min(addendum, (-(1/4)*(backlash-P)*(1/math.tan(pAngle)))-0.0001 )
         dedendum = min(dedendum, -(1/4)*(-backlash-P)*(1/math.tan(pAngle))-0.0001 )
         dedendum = min(dedendum, height-0.0001)
@@ -722,7 +749,7 @@ class CommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             # Get the command that was created.
             cmd = adsk.core.Command.cast(args.command)
 
-            # Registers the CommandDestryHandler
+            # Registers the CommandExecuteHandler
             onExecute = CommandExecuteHandler()
             cmd.execute.add(onExecute)
             _handlers.append(onExecute)
@@ -741,6 +768,11 @@ class CommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             onDestroy = CommandDestroyHandler()
             cmd.destroy.add(onDestroy)
             _handlers.append(onDestroy)
+
+            # Registers the CommandValidateInputsEventHandler
+            onValidate = CommandValidateInputsEventHandler()
+            cmd.validateInputs.add(onValidate)
+            _handlers.append(onValidate)
 
             # Get the CommandInputs collection associated with the command.
             inputs = cmd.commandInputs
@@ -804,6 +836,8 @@ class CommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             bvPreview.tooltip = "Preview"
             bvPreview.tooltipDescription = "Generates a real-time preview of the gear.\nThis makes changes slower as the gear has to re-generate."
 
+            tbWarning1 = tabSettings.children.addTextBoxCommandInput("TBWarning1", "", '', 2, True)
+            
             # Advanced command inputs
             ddStandard = tabAdvanced.children.addDropDownCommandInput("DDStandard", "Standard", 0)
             ddStandard.listItems.add("Normal", pers['DDStandard'] == "Normal", "resources/normal")
@@ -831,9 +865,16 @@ class CommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
                                                             adsk.core.ValueInput.createByReal(pers['VIDedendum']))
             viDedendum.tooltip = "Dedendum"
             viDedendum.tooltipDescription = "Represents the factor that the root diameter is below the pitch diameter."
-            # Properties
-            tbProperties = tabProperties.children.addTextBoxCommandInput("TBProperties", "", "Lorem", 5, True)
 
+            ''' WIP
+            bvReset = tabAdvanced.children.addBoolValueInput("BVReset", "  Reset parameters  ", False)
+            bvReset.isFullWidth = True
+            '''
+
+            tbWarning2 = tabAdvanced.children.addTextBoxCommandInput("TBWarning2", "", '', 2, True)
+
+            # Properties
+            tbProperties = tabProperties.children.addTextBoxCommandInput("TBProperties", "", "", 5, True)
 
         except:
             print(traceback.format_exc())
@@ -876,6 +917,20 @@ class CommandExecutePreviewHandler(adsk.core.CommandEventHandler):
             print(traceback.format_exc())
 
 
+# Fires when CommandInputs are changed or other parts of the UI are updated
+# Responsible for turning the ok button on or off and allowing preview
+class CommandValidateInputsEventHandler(adsk.core.ValidateInputsEventHandler):
+    def __init__(self):
+        super().__init__()
+    
+    def notify(self, args):
+        try:
+            is_invalid = generate_gear(args.inputs).is_invalid
+            args.areInputsValid = not is_invalid
+        except:
+            print(traceback.format_exc())
+
+
 # Fires when CommandInputs are changed
 # Responsible for dynamically updating other Command Inputs
 class CommandInputChangedHandler(adsk.core.InputChangedEventHandler):
@@ -897,8 +952,35 @@ class CommandInputChangedHandler(adsk.core.InputChangedEventHandler):
                 tbProperties = args.inputs.itemById("TBProperties")
                 tbProperties.numRows = len(str(gear).split('\n'))
                 tbProperties.text = str(gear)
-
-
+            
+            # Updates Warning Message
+            if(not args.input.id[:2] == "TB"):
+                is_invalid = generate_gear(args.input.parentCommand.commandInputs).is_invalid
+                if(is_invalid):
+                    args.input.parentCommand.commandInputs.itemById("TBWarning1").formattedText = '<h3><font color="darkred">Error: {0}</font></h3>'.format(is_invalid)
+                    args.input.parentCommand.commandInputs.itemById("TBWarning2").formattedText = '<h3><font color="darkred">Error: {0}</font></h3>'.format(is_invalid)
+                else:
+                    args.input.parentCommand.commandInputs.itemById("TBWarning1").formattedText = ''
+                    args.input.parentCommand.commandInputs.itemById("TBWarning2").formattedText = ''
+            ''' WIP 
+            # Resets parameters
+            if(args.input.id == "BVReset"):
+                args.input.parentCommand.commandInputs.itemById("DDStandard").listItems.item(0).isSelected = True
+                args.input.parentCommand.commandInputs.itemById("DDStandard").listItems.item(0).isSelected = True
+                args.input.parentCommand.commandInputs.itemById("VIHelixAngle").value = 0.5235987755982988,
+                args.input.parentCommand.commandInputs.itemById("VIPressureAngle").value = 0.5235987755982988,
+                args.input.parentCommand.commandInputs.itemById("VIModule").value = 0.3,
+                args.input.parentCommand.commandInputs.itemById("ISTeeth").value = 16,
+                args.input.parentCommand.commandInputs.itemById("VIBacklash").value = 0.0,
+                args.input.parentCommand.commandInputs.itemById("VIWidth").value = 1.0,
+                args.input.parentCommand.commandInputs.itemById("VIHeight").value = 0.8,
+                args.input.parentCommand.commandInputs.itemById("VILength").value = 10.0,
+                args.input.parentCommand.commandInputs.itemById("VIDiameter").value = 8.0,
+                args.input.parentCommand.commandInputs.itemById("BVHerringbone").value = False,
+                args.input.parentCommand.commandInputs.itemById("BVPreview").value = False,
+                args.input.parentCommand.commandInputs.itemById("VIAddendum").value = 1,
+                args.input.parentCommand.commandInputs.itemById("VIDedendum").value = 1.25
+            '''
         except:
             print(traceback.format_exc())
 
@@ -1018,8 +1100,6 @@ def generate_gear(commandInputs):
                     commandInputs.itemById("BVHerringbone").value,
                     commandInputs.itemById("VIDiameter").value
                 )
-
-    print(gear.is_valid)
     return gear
 
 
