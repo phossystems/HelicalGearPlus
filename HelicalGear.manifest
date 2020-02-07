@@ -1,10 +1,9 @@
 {
 	"autodeskProduct":	"Fusion360",
 	"type":	"addin",
-	"id":	"6a4d8a7a-671d-4386-9904-e6313f63d05f",
-	"author":	"Ross Korsky",
+	"author":	"Nico Schlueter",
 	"description":	{
-		"":	"Helical or \"dry fixed\" gears offer a refinement over spur gears. \nThe leading edges of the teeth are not parallel to the axis of rotation, but are set at an angle. \nSince the gear is curved, this angling makes the tooth shape a segment of a helix. \nHelical gears can be meshed in parallel or crossed orientations.[From Wikipedia]"
+		"":	"Generates straight, helical and herringbone external, internal and rack gears as well as non-enveloping worms and worm gears"
 	},
 	"version":	"1.0.3",
 	"runOnStartup":	false,
