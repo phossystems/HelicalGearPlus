@@ -1,6 +1,16 @@
+# Author Nico Schlueter 2020
+#
+# Released under the MIT license. See License.txt for full license information.
+#
+# Description-Generates straight, helical and herringbone external, internal and rack gears
+# as well as non-enveloping worms and worm gears
+#
+# Parts (mostly helical gear calculatiom) was taken from Ross Korsky's Helical gear generator
+# Parts (mostly some of the Involute code) was taken from AutoDesks' Fusion 360 SpurGear sample script.
+# The primary source used to produce this add-in was http://qtcgears.com/tools/catalogs/PDF_Q420/Tech.pdf
+
 import adsk.core, adsk.fusion, traceback
 import math
-import time
 
 # Global set of event handlers to keep them referenced for the duration of the command
 _handlers = []
@@ -241,42 +251,42 @@ class HelicalGear:
 
     @property
     def is_invalid(self):
-        if(self.width <= 0):
+        if (self.width <= 0):
             return "Width too low"
-        if(math.radians(-90) > self.helix_angle):
+        if (math.radians(-90) > self.helix_angle):
             return "Helix angle too low"
-        if(math.radians(90) < self.helix_angle):
+        if (math.radians(90) < self.helix_angle):
             return "Helix angle too high"
-        if(self.module <= 0):
+        if (self.module <= 0):
             return "Module to low"
-        if(self.addendum <= 0):
+        if (self.addendum <= 0):
             return "Addendum too low"
-        if(self.whole_depth <= 0):
+        if (self.whole_depth <= 0):
             return "Dedendum too low"
-        if(self.pressure_angle < 0):
+        if (self.pressure_angle < 0):
             return "Pressure angle too low"
-        if(self.pressure_angle > math.radians(80)):
+        if (self.pressure_angle > math.radians(80)):
             return "Pressure angle too high"
-        if(self.normal_pressure_angle < 0):
+        if (self.normal_pressure_angle < 0):
             return "Pressure angle too low"
-        if(self.normal_pressure_angle > math.radians(80)):
+        if (self.normal_pressure_angle > math.radians(80)):
             return "Pressure angle too high"
-        if(self.tooth_count <= 0):
+        if (self.tooth_count <= 0):
             return "Too few teeth"
-        if(abs(self.backlash_angle) / 4 >= self.tooth_arc_angle / 8):
+        if (abs(self.backlash_angle) / 4 >= self.tooth_arc_angle / 8):
             return "Backlash too high"
-        if(self.internal_outside_diameter):
-            if(self.internal_outside_diameter <= self.outside_diameter):
+        if (self.internal_outside_diameter):
+            if (self.internal_outside_diameter <= self.outside_diameter):
                 return "Outside diameter too low"
-        if(self.circular_pitch <= 0):
+        if (self.circular_pitch <= 0):
             return "Invalid: circular_pitch"
-        if(self.base_diameter <= 0):
+        if (self.base_diameter <= 0):
             return "Invalid Gear"
-        if(self.pitch_diameter <= 0):
+        if (self.pitch_diameter <= 0):
             return "Invalid Gear"
-        if(self.root_diameter <= 0.03):
+        if (self.root_diameter <= 0.03):
             return "Invalid Gear"
-        if(self.outside_diameter <= 0):
+        if (self.outside_diameter <= 0):
             return "Invalid Gear"
         return False
 
@@ -310,9 +320,9 @@ class HelicalGear:
     def create_in_normal_system(tooth_count, normal_module, normal_pressure_angle, helix_angle, backlash=0, addendum=1,
                                 dedendum=1.25, width=1, herringbone=False, internal_outside_diameter=None):
         tooth_count = tooth_count if tooth_count > 0 else 1
-        #normal_module = normal_module if normal_module > 0 else 1e-10
-        #normal_pressure_angle = normal_pressure_angle if 0 <= normal_pressure_angle < math.radians(90) else 0
-        #helix_angle = helix_angle if math.radians(-90) < helix_angle < math.radians(90) else 0
+        # normal_module = normal_module if normal_module > 0 else 1e-10
+        # normal_pressure_angle = normal_pressure_angle if 0 <= normal_pressure_angle < math.radians(90) else 0
+        # helix_angle = helix_angle if math.radians(-90) < helix_angle < math.radians(90) else 0
 
         gear = HelicalGear()
         gear.backlash = backlash
@@ -444,14 +454,14 @@ class HelicalGear:
             tbm = adsk.fusion.TemporaryBRepManager.get()
             if (self.herringbone):
                 cyl = cylinder = tbm.createCylinderOrCone(adsk.core.Point3D.create(0, 0, -self.width / 2),
-                                                          self.internal_outside_diameter/2,
+                                                          self.internal_outside_diameter / 2,
                                                           adsk.core.Point3D.create(0, 0, self.width / 2),
-                                                          self.internal_outside_diameter/2)
+                                                          self.internal_outside_diameter / 2)
             else:
                 cyl = cylinder = tbm.createCylinderOrCone(adsk.core.Point3D.create(0, 0, 0),
-                                                          self.internal_outside_diameter/2,
+                                                          self.internal_outside_diameter / 2,
                                                           adsk.core.Point3D.create(0, 0, self.width),
-                                                          self.internal_outside_diameter/2)
+                                                          self.internal_outside_diameter / 2)
             tbm.booleanOperation(cyl, tbm.copy(gearBody), 0)
             if (base_feature):
                 component.bRepBodies.add(cyl, base_feature)
@@ -538,39 +548,39 @@ class RackGear:
 
     @property
     def is_invalid(self):
-        if(self.length <= 0):
+        if (self.length <= 0):
             return "Length too low"
-        if(self.width <= 0):
+        if (self.width <= 0):
             return "Width too low"
-        if(self.height <= 0):
+        if (self.height <= 0):
             return "Height too low"
-        if(self.module <= 0):
+        if (self.module <= 0):
             return "Module too low"
-        if(self.addendum < 0):
+        if (self.addendum < 0):
             return "Addendum too low"
-        if(self.dedendum < 0):
+        if (self.dedendum < 0):
             return "Dedendum too low"
-        if(self.addendum + self.dedendum <= 0):
+        if (self.addendum + self.dedendum <= 0):
             return "Addendum too low"
-        if( not (0 < self.pressure_angle < math.radians(90))):
+        if (not (0 < self.pressure_angle < math.radians(90))):
             return "Invalid pressure angle"
-        if( not (math.radians(-90) < self.helix_angle < math.radians(90))):
+        if (not (math.radians(-90) < self.helix_angle < math.radians(90))):
             return "Invalid helix angle"
         # Not actually the limit but close enough
-        if((-3 * self.normal_module) > self.backlash):
+        if ((-3 * self.normal_module) > self.backlash):
             return "Backlash too low"
-        if(self.backlash > (3 * self.normal_module)):
-            return "Backlash too high" 
+        if (self.backlash > (3 * self.normal_module)):
+            return "Backlash too high"
         return False
 
     def rackLines(self, x, y, z, m, n, height, pAngle, hAngle, backlash, addendum, dedendum):
         strech = 1 / math.cos(hAngle)
         P = m * math.pi
 
-        #Clamps addendum and dedendum
-        addendum = min(addendum, (-(1/4)*(backlash-P)*(1/math.tan(pAngle)))-0.0001 )
-        dedendum = min(dedendum, -(1/4)*(-backlash-P)*(1/math.tan(pAngle))-0.0001 )
-        dedendum = min(dedendum, height-0.0001)
+        # Clamps addendum and dedendum
+        addendum = min(addendum, (-(1 / 4) * (backlash - P) * (1 / math.tan(pAngle))) - 0.0001)
+        dedendum = min(dedendum, -(1 / 4) * (-backlash - P) * (1 / math.tan(pAngle)) - 0.0001)
+        dedendum = min(dedendum, height - 0.0001)
 
         lines = []
 
@@ -578,21 +588,22 @@ class RackGear:
             # Root
             lines.append(
                 adsk.core.Line3D.create(adsk.core.Point3D.create(x + ((i * P)) * strech, y, z - dedendum),
-                                        adsk.core.Point3D.create(x + ((i * P) + (P / 2) + backlash/2 - (
+                                        adsk.core.Point3D.create(x + ((i * P) + (P / 2) + backlash / 2 - (
                                                 math.tan(pAngle) * 2 * dedendum)) * strech, y, z - dedendum))
             )
             # Left Edge
             lines.append(
                 adsk.core.Line3D.create(adsk.core.Point3D.create(
-                    x + ((i * P) + (P / 2) + backlash/2 - (math.tan(pAngle) * 2 * dedendum)) * strech, y, z - dedendum),
-                    adsk.core.Point3D.create(x + ((i * P) + (P / 2) + backlash/2 - (
+                    x + ((i * P) + (P / 2) + backlash / 2 - (math.tan(pAngle) * 2 * dedendum)) * strech, y,
+                    z - dedendum),
+                    adsk.core.Point3D.create(x + ((i * P) + (P / 2) + backlash / 2 - (
                             math.tan(pAngle) * (dedendum - addendum))) * strech, y,
                                              z + addendum))
             )
             # Tip
             lines.append(
                 adsk.core.Line3D.create(adsk.core.Point3D.create(
-                    x + ((i * P) + (P / 2) + backlash/2 - (math.tan(pAngle) * (dedendum - addendum))) * strech, y,
+                    x + ((i * P) + (P / 2) + backlash / 2 - (math.tan(pAngle) * (dedendum - addendum))) * strech, y,
                     z + addendum),
                     adsk.core.Point3D.create(x + ((i * P) + P - (
                             math.tan(pAngle) * (dedendum + addendum))) * strech, y,
@@ -695,7 +706,6 @@ class RackGear:
         if (self.herringbone):
             tempBRepBodies.append(tbm.createRuledSurface(wireBody2.wires.item(0), wireBody3.wires.item(0)))
         # Turns surfaces into real BRep so they can be boundary filled
-        t = time.time()
         tools = adsk.core.ObjectCollection.create()
         for b in tempBRepBodies:
             if (base_feature):
@@ -713,7 +723,7 @@ class RackGear:
         obb = adsk.core.OrientedBoundingBox3D.create(adsk.core.Point3D.create(0, 0, 0),
                                                      adsk.core.Vector3D.create(1, 0, 0),
                                                      adsk.core.Vector3D.create(0, 1, 0),
-                                                     self.length, self.width * 2, (self.height + self.addendum)*2)
+                                                     self.length, self.width * 2, (self.height + self.addendum) * 2)
         box = tbm.createBox(obb)
         tbm.booleanOperation(box, tbm.copy(body), 1)
         if (base_feature):
@@ -837,7 +847,7 @@ class CommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             bvPreview.tooltipDescription = "Generates a real-time preview of the gear.\nThis makes changes slower as the gear has to re-generate."
 
             tbWarning1 = tabSettings.children.addTextBoxCommandInput("TBWarning1", "", '', 2, True)
-            
+
             # Advanced command inputs
             ddStandard = tabAdvanced.children.addDropDownCommandInput("DDStandard", "Standard", 0)
             ddStandard.listItems.add("Normal", pers['DDStandard'] == "Normal", "resources/normal")
@@ -922,7 +932,7 @@ class CommandExecutePreviewHandler(adsk.core.CommandEventHandler):
 class CommandValidateInputsEventHandler(adsk.core.ValidateInputsEventHandler):
     def __init__(self):
         super().__init__()
-    
+
     def notify(self, args):
         try:
             is_invalid = generate_gear(args.inputs).is_invalid
@@ -952,13 +962,17 @@ class CommandInputChangedHandler(adsk.core.InputChangedEventHandler):
                 tbProperties = args.inputs.itemById("TBProperties")
                 tbProperties.numRows = len(str(gear).split('\n'))
                 tbProperties.text = str(gear)
-            
+
             # Updates Warning Message
-            if(not args.input.id[:2] == "TB"):
+            if (not args.input.id[:2] == "TB"):
                 is_invalid = generate_gear(args.input.parentCommand.commandInputs).is_invalid
-                if(is_invalid):
-                    args.input.parentCommand.commandInputs.itemById("TBWarning1").formattedText = '<h3><font color="darkred">Error: {0}</font></h3>'.format(is_invalid)
-                    args.input.parentCommand.commandInputs.itemById("TBWarning2").formattedText = '<h3><font color="darkred">Error: {0}</font></h3>'.format(is_invalid)
+                if (is_invalid):
+                    args.input.parentCommand.commandInputs.itemById(
+                        "TBWarning1").formattedText = '<h3><font color="darkred">Error: {0}</font></h3>'.format(
+                        is_invalid)
+                    args.input.parentCommand.commandInputs.itemById(
+                        "TBWarning2").formattedText = '<h3><font color="darkred">Error: {0}</font></h3>'.format(
+                        is_invalid)
                 else:
                     args.input.parentCommand.commandInputs.itemById("TBWarning1").formattedText = ''
                     args.input.parentCommand.commandInputs.itemById("TBWarning2").formattedText = ''
