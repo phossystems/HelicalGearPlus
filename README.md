@@ -6,7 +6,7 @@ Parts based on Ross Korsky's Helical gear generator
 
 <br>
 
-![gears](https://user-images.githubusercontent.com/30301307/72372203-3bc02100-3706-11ea-8fb8-4b80ad90758a.jpg)
+![gears](https://user-images.githubusercontent.com/30301307/74059553-8c1a5e00-49e8-11ea-91ba-b8ec525d1222.jpg)
 
 <br>
 
