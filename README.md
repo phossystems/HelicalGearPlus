@@ -1,6 +1,8 @@
 # HelicalGear
 
-This is a "Branch" of Ross Korsky's Helical Gear Generator Add-in for Autodesk's Fusion 360.
+Generates straight, helical and herringbone external, internal and rack gears
+as well as non-enveloping worms and worm gears.
+Parts based on Ross Korsky's Helical gear generator
 
 <br>
 
@@ -8,25 +10,8 @@ This is a "Branch" of Ross Korsky's Helical Gear Generator Add-in for Autodesk's
 
 <br>
 
-# Changes
+![UI](https://user-images.githubusercontent.com/30301307/74058710-e31f3380-49e6-11ea-8584-446c37cc4edc.jpg)
 
-## Internal gear support
-Internal gears are now supported. 
-
-## Sweep-based gear generation
-This change leads to about 10x to 50x faster gear generation while generating more accurate gears and makes high twist gears (like screws) possible. Any gear now only uses one sketch and one sweep feature instead of hundreds of sketches.
-
-## Timeline Grouping
-This Add-In may generate hundreds of features in order to create some gears.
-These features are now contained in a single timeline group so they do not clutter up the timeline.
-
-## "Better" Input Persistence
-Previously input persistence was achieved by saving the input values to attributes. This has the disadvantage of being rolled back by undos. So if you wanted to tweak a gear you just generated you would have to re-enter everything.
-The new system just stores values in a variable. Persistence is lost if Fusion360 or the Add-In is restarted but persistence is not affected by undos. While a hybrid system would be possible, I do not think it is worth implementing.
-
-## Base feature Mode
-With the base feature option enabeled, gears are generated inside a base feature, meaning that no design history is being captured for the gear and it does not need to be recalculated every time something in the timeline changes.
-This significantly improves perfermance for files containing complex gears and also seems to spead up generation a bit.
 <br>
 
 # Installation
