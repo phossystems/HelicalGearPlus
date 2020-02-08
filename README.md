@@ -1,4 +1,4 @@
-# HelicalGear
+# HelicalGear Plus
 
 Generates straight, helical and herringbone external, internal and rack gears
 as well as non-enveloping worms and worm gears.

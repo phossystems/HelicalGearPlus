@@ -15,8 +15,8 @@ import math
 # Global set of event handlers to keep them referenced for the duration of the command
 _handlers = []
 
-COMMAND_ID = "helicalGear"
-COMMAND_NAME = "Hellical Gear"
+COMMAND_ID = "helicalGearPlus"
+COMMAND_NAME = "Helical Gear+"
 COMMAND_TOOLTIP = "Generates Helical Gears"
 TOOLBAR_PANELS = ["SolidCreatePanel"]
 

@@ -5,7 +5,7 @@
 	"description":	{
 		"":	"Generates straight, helical and herringbone external, internal and rack gears as well as non-enveloping worms and worm gears"
 	},
-	"version":	"1.0.3",
+	"version":	"1.0.5",
 	"runOnStartup":	false,
 	"supportedOS":	"windows|mac",
 	"editEnabled":	true
