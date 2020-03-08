@@ -23,6 +23,7 @@ TOOLBAR_PANELS = ["SolidCreatePanel"]
 # Initial persistence Dict
 pers = {
     'DDType': "External Gear",
+    'DDDirection': "Front",
     'DDStandard': "Normal",
     'VIHelixAngle': 0.5235987755982988,
     'VIPressureAngle': 0.3490658503988659,
@@ -192,12 +193,15 @@ class Involute:
         return adsk.core.Point3D.create(x, y, z_shift)
 
 
-def planeAndOriginToMatrix3D(plane, origin):
+def planeAndOriginToMatrix3D(plane, origin, invert=False, offset=adsk.core.Point3D.create(0, 0, 0)):
     plane_normal_xz = plane.normal.copy()
     plane_normal_xz.y = 0
     alpha = adsk.core.Vector3D.create(0, 0, 1).angleTo(plane_normal_xz)
     if math.isnan(alpha):
         alpha = 0
+
+    if invert:
+        alpha += math.pi
 
     plane_normal_yz = plane.normal.copy()
     plane_normal_yz.x = 0
@@ -208,6 +212,10 @@ def planeAndOriginToMatrix3D(plane, origin):
     plane_origin = plane.intersectWithLine(adsk.core.InfiniteLine3D.create(origin, plane.normal))
 
     matrix = adsk.core.Matrix3D.create()
+
+    matrixOffset = adsk.core.Matrix3D.create()
+    matrixOffset.setWithCoordinateSystem(offset, adsk.core.Vector3D.create(1, 0, 0), adsk.core.Vector3D.create(0, 1, 0), adsk.core.Vector3D.create(0, 0, 1))
+    matrix.transformBy(matrixOffset)
 
     matrixAlpha = adsk.core.Matrix3D.create()
     matrixAlpha.setToRotation(alpha, adsk.core.Vector3D.create(0, 1, 0), adsk.core.Point3D.create(0, 0, 0))
@@ -419,9 +427,14 @@ class HelicalGear:
 
         return gear
 
-    def model_gear(self, parent_component, plane, origin):
+    def model_gear(self, parent_component, plane, origin, invert, center):
         # Create new component
-        component = parent_component.occurrences.addNewComponent(planeAndOriginToMatrix3D(plane, origin)).component
+        offset = adsk.core.Point3D.create(0, 0, 0)
+        if center and not self.herringbone:
+            offset.z -= self.width / 2
+        elif not center and self.herringbone:
+            offset.z += self.width / 2
+        component = parent_component.occurrences.addNewComponent(planeAndOriginToMatrix3D(plane, origin, invert, offset)).component
         component.name = 'Healical Gear ({0}{1}@{2:.2f} m={3})'.format(
             self.tooth_count,
             'L' if self.helix_angle < 0 else 'R',
@@ -664,9 +677,9 @@ class RackGear:
         )
         return lines
 
-    def model_gear(self, parent_component, plane, origin):
+    def model_gear(self, parent_component, plane, origin, invert, center):
         # Create new component
-        component = parent_component.occurrences.addNewComponent(planeAndOriginToMatrix3D(plane, origin)).component
+        component = parent_component.occurrences.addNewComponent(planeAndOriginToMatrix3D(plane, origin, invert)).component
         component.name = 'Healical Rack ({0}mm {1}@{2:.2f} m={3})'.format(
             self.length * 10,
             'L' if self.helix_angle < 0 else 'R',
@@ -829,6 +842,11 @@ class CommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             ddType.listItems.add("Internal Gear", pers['DDType'] == "Internal Gear", "resources/internal")
             ddType.listItems.add("Rack Gear", pers['DDType'] == "Rack Gear", "resources/rack")
 
+            ddDirection = tabSettings.children.addDropDownCommandInput("DDDirection", "Direction", 0)
+            ddDirection.listItems.add("Front", pers['DDDirection'] == "Front", "resources/front")
+            ddDirection.listItems.add("Back", pers['DDDirection'] == "Back", "resources/back")
+            refreshDirectionList(ddDirection, pers['DDType'] != "Rack Gear")
+
             ddPlane = tabSettings.children.addSelectionInput("DDPlane", "Plane", "The Plane of the Gear")
             ddPlane.addSelectionFilter("ConstructionPlanes")
             ddPlane.addSelectionFilter("Profiles")
@@ -933,6 +951,15 @@ class CommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             print(traceback.format_exc())
 
 
+def refreshDirectionList(input, center):
+    centerVisible = input.listItems.item(1).name == "Center"
+    if center and not centerVisible:
+        input.listItems.add("Center", pers['DDDirection'] == "Center", "resources/center", 1)
+    elif not center and centerVisible:
+        if input.selectedItem.name == "Center":
+            input.listItems.item(0).isSelected = True
+        input.listItems.item(1).deleteMe()
+
 def selectedPlane(ddPlane):
     planeEntity = ddPlane.selection(0).entity
     if hasattr(planeEntity, 'geometry'):
@@ -957,8 +984,10 @@ class CommandExecuteHandler(adsk.core.CommandEventHandler):
             preserve_inputs(args.command.commandInputs, pers)
             plane = selectedPlane(args.command.commandInputs.itemById("DDPlane"))
             origin = selectedOrigin(args.command.commandInputs.itemById("DDOrigin"))
+            invert = args.command.commandInputs.itemById("DDDirection").selectedItem.name == "Back"
+            center = args.command.commandInputs.itemById("DDDirection").selectedItem.name == "Center"
             generate_gear(args.command.commandInputs).model_gear(
-                adsk.core.Application.get().activeProduct.rootComponent, plane, origin)
+                adsk.core.Application.get().activeProduct.rootComponent, plane, origin, invert, center)
         except:
             print(traceback.format_exc())
 
@@ -976,8 +1005,10 @@ class CommandExecutePreviewHandler(adsk.core.CommandEventHandler):
                 preserve_inputs(args.command.commandInputs, pers)
                 plane = selectedPlane(args.command.commandInputs.itemById("DDPlane"))
                 origin = selectedOrigin(args.command.commandInputs.itemById("DDOrigin"))
+                invert = args.command.commandInputs.itemById("DDDirection").selectedItem.name == "Back"
+                center = args.command.commandInputs.itemById("DDDirection").selectedItem.name == "Center"
                 generate_gear(args.command.commandInputs).model_gear(
-                    adsk.core.Application.get().activeProduct.rootComponent, plane, origin)
+                    adsk.core.Application.get().activeProduct.rootComponent, plane, origin, invert, center)
                 args.isValidResult = True
             else:
                 args.isValidResult = False
@@ -1011,6 +1042,7 @@ class CommandInputChangedHandler(adsk.core.InputChangedEventHandler):
             # Handles input visibillity based on gear type
             if (args.input.id == "DDType"):
                 gearType = args.input.selectedItem.name
+                refreshDirectionList(args.inputs.itemById("DDDirection"), gearType != "Rack Gear")
                 args.inputs.itemById("ISTeeth").isVisible = gearType != "Rack Gear"
                 args.inputs.itemById("VIHeight").isVisible = gearType == "Rack Gear"
                 args.inputs.itemById("VILength").isVisible = gearType == "Rack Gear"
@@ -1074,6 +1106,7 @@ class CommandDestroyHandler(adsk.core.CommandEventHandler):
 
 def preserve_inputs(commandInputs, pers):
     pers['DDType'] = commandInputs.itemById("DDType").selectedItem.name
+    pers['DDDirection'] = commandInputs.itemById("DDDirection").selectedItem.name
     pers['DDStandard'] = commandInputs.itemById("DDStandard").selectedItem.name
     pers['VIHelixAngle'] = commandInputs.itemById("VIHelixAngle").value
     pers['VIPressureAngle'] = commandInputs.itemById("VIPressureAngle").value
