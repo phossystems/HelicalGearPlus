@@ -192,6 +192,37 @@ class Involute:
         return adsk.core.Point3D.create(x, y, z_shift)
 
 
+def planeAndOriginToMatrix3D(plane, origin):
+    plane_normal_xz = plane.normal.copy()
+    plane_normal_xz.y = 0
+    alpha = adsk.core.Vector3D.create(0, 0, 1).angleTo(plane_normal_xz)
+    if math.isnan(alpha):
+        alpha = 0
+
+    plane_normal_yz = plane.normal.copy()
+    plane_normal_yz.x = 0
+    beta = adsk.core.Vector3D.create(0, 0, 1).angleTo(plane_normal_yz)
+    if math.isnan(beta):
+        beta = 0
+
+    plane_origin = plane.intersectWithLine(adsk.core.InfiniteLine3D.create(origin, plane.normal))
+
+    matrix = adsk.core.Matrix3D.create()
+
+    matrixAlpha = adsk.core.Matrix3D.create()
+    matrixAlpha.setToRotation(alpha, adsk.core.Vector3D.create(0, 1, 0), plane.origin)
+    matrix.transformBy(matrixAlpha)
+
+    matrixBeta = adsk.core.Matrix3D.create()
+    matrixBeta.setToRotation(beta, adsk.core.Vector3D.create(1, 0, 0), plane.origin)
+    matrix.transformBy(matrixBeta)
+
+    matrixOrigin = adsk.core.Matrix3D.create()
+    matrixOrigin.setWithCoordinateSystem(plane_origin, adsk.core.Vector3D.create(1, 0, 0), adsk.core.Vector3D.create(0, 1, 0), adsk.core.Vector3D.create(0, 0, 1))
+    matrix.transformBy(matrixOrigin)
+
+    return matrix
+
 class HelicalGear:
     def __init__(self):
         pass
@@ -388,9 +419,9 @@ class HelicalGear:
 
         return gear
 
-    def model_gear(self, parent_component):
+    def model_gear(self, parent_component, plane, origin):
         # Create new component
-        component = parent_component.occurrences.addNewComponent(adsk.core.Matrix3D.create()).component
+        component = parent_component.occurrences.addNewComponent(planeAndOriginToMatrix3D(plane, origin)).component
         component.name = 'Healical Gear ({0}{1}@{2:.2f} m={3})'.format(
             self.tooth_count,
             'L' if self.helix_angle < 0 else 'R',
@@ -633,9 +664,9 @@ class RackGear:
         )
         return lines
 
-    def model_gear(self, parent_component):
+    def model_gear(self, parent_component, plane, origin):
         # Create new component
-        component = parent_component.occurrences.addNewComponent(adsk.core.Matrix3D.create()).component
+        component = parent_component.occurrences.addNewComponent(planeAndOriginToMatrix3D(plane, origin)).component
         component.name = 'Healical Rack ({0}mm {1}@{2:.2f} m={3})'.format(
             self.length * 10,
             'L' if self.helix_angle < 0 else 'R',
@@ -798,6 +829,18 @@ class CommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             ddType.listItems.add("Internal Gear", pers['DDType'] == "Internal Gear", "resources/internal")
             ddType.listItems.add("Rack Gear", pers['DDType'] == "Rack Gear", "resources/rack")
 
+            ddPlane = tabSettings.children.addSelectionInput("DDPlane", "Plane", "The Plane of the Gear")
+            ddPlane.addSelectionFilter("ConstructionPlanes")
+            ddPlane.addSelectionFilter("Profiles")
+            ddPlane.addSelectionFilter("Faces")
+            ddPlane.addSelection(adsk.core.Application.get().activeProduct.rootComponent.xYConstructionPlane)
+
+            ddOrigin = tabSettings.children.addSelectionInput("DDOrigin", "Origin", "The Origin of the Gear")
+            ddOrigin.addSelectionFilter("ConstructionPoints")
+            ddOrigin.addSelectionFilter("SketchPoints")
+            ddOrigin.addSelectionFilter("Vertices")
+            ddOrigin.addSelection(adsk.core.Application.get().activeProduct.rootComponent.originConstructionPoint)
+
             viModule = tabSettings.children.addValueInput("VIModule", "Module", "mm",
                                                           adsk.core.ValueInput.createByReal(pers['VIModule']))
             viModule.tooltip = "Module"
@@ -890,6 +933,18 @@ class CommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             print(traceback.format_exc())
 
 
+def selectedPlane(ddPlane):
+    planeEntity = ddPlane.selection(0).entity
+    if hasattr(planeEntity, 'geometry'):
+        return planeEntity.geometry
+    else:
+        return planeEntity.plane
+
+def selectedOrigin(ddOrigin):
+    originEntity = ddOrigin.selection(0).entity
+    if hasattr(originEntity, 'geometry'):
+        return originEntity.geometry
+
 # Fires when the User executes the Command
 # Responsible for doing the changes to the document
 class CommandExecuteHandler(adsk.core.CommandEventHandler):
@@ -900,8 +955,10 @@ class CommandExecuteHandler(adsk.core.CommandEventHandler):
         try:
             # Saves inputs to dict for persistence
             preserve_inputs(args.command.commandInputs, pers)
+            plane = selectedPlane(args.command.commandInputs.itemById("DDPlane"))
+            origin = selectedOrigin(args.command.commandInputs.itemById("DDOrigin"))
             generate_gear(args.command.commandInputs).model_gear(
-                adsk.core.Application.get().activeProduct.rootComponent)
+                adsk.core.Application.get().activeProduct.rootComponent, plane, origin)
         except:
             print(traceback.format_exc())
 
@@ -917,8 +974,10 @@ class CommandExecutePreviewHandler(adsk.core.CommandEventHandler):
         try:
             if (args.command.commandInputs.itemById("BVPreview").value):
                 preserve_inputs(args.command.commandInputs, pers)
+                plane = selectedPlane(args.command.commandInputs.itemById("DDPlane"))
+                origin = selectedOrigin(args.command.commandInputs.itemById("DDOrigin"))
                 generate_gear(args.command.commandInputs).model_gear(
-                    adsk.core.Application.get().activeProduct.rootComponent)
+                    adsk.core.Application.get().activeProduct.rootComponent, plane, origin)
                 args.isValidResult = True
             else:
                 args.isValidResult = False
