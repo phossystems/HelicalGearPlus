@@ -210,11 +210,11 @@ def planeAndOriginToMatrix3D(plane, origin):
     matrix = adsk.core.Matrix3D.create()
 
     matrixAlpha = adsk.core.Matrix3D.create()
-    matrixAlpha.setToRotation(alpha, adsk.core.Vector3D.create(0, 1, 0), plane.origin)
+    matrixAlpha.setToRotation(alpha, adsk.core.Vector3D.create(0, 1, 0), adsk.core.Point3D.create(0, 0, 0))
     matrix.transformBy(matrixAlpha)
 
     matrixBeta = adsk.core.Matrix3D.create()
-    matrixBeta.setToRotation(beta, adsk.core.Vector3D.create(1, 0, 0), plane.origin)
+    matrixBeta.setToRotation(beta, adsk.core.Vector3D.create(1, 0, 0), adsk.core.Point3D.create(0, 0, 0))
     matrix.transformBy(matrixBeta)
 
     matrixOrigin = adsk.core.Matrix3D.create()
