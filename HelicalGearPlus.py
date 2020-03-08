@@ -842,11 +842,6 @@ class CommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             ddType.listItems.add("Internal Gear", pers['DDType'] == "Internal Gear", "resources/internal")
             ddType.listItems.add("Rack Gear", pers['DDType'] == "Rack Gear", "resources/rack")
 
-            ddDirection = tabSettings.children.addDropDownCommandInput("DDDirection", "Direction", 0)
-            ddDirection.listItems.add("Front", pers['DDDirection'] == "Front", "resources/front")
-            ddDirection.listItems.add("Back", pers['DDDirection'] == "Back", "resources/back")
-            refreshDirectionList(ddDirection, pers['DDType'] != "Rack Gear")
-
             ddPlane = tabSettings.children.addSelectionInput("DDPlane", "Plane", "The Plane of the Gear")
             ddPlane.addSelectionFilter("ConstructionPlanes")
             ddPlane.addSelectionFilter("Profiles")
@@ -858,6 +853,11 @@ class CommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             ddOrigin.addSelectionFilter("SketchPoints")
             ddOrigin.addSelectionFilter("Vertices")
             ddOrigin.addSelection(adsk.core.Application.get().activeProduct.rootComponent.originConstructionPoint)
+
+            ddDirection = tabSettings.children.addDropDownCommandInput("DDDirection", "Direction", 0)
+            ddDirection.listItems.add("Front", pers['DDDirection'] == "Front", "resources/front")
+            ddDirection.listItems.add("Back", pers['DDDirection'] == "Back", "resources/back")
+            refreshDirectionList(ddDirection, pers['DDType'] != "Rack Gear")
 
             viModule = tabSettings.children.addValueInput("VIModule", "Module", "mm",
                                                           adsk.core.ValueInput.createByReal(pers['VIModule']))
