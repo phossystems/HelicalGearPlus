@@ -193,41 +193,32 @@ class Involute:
         return adsk.core.Point3D.create(x, y, z_shift)
 
 
-def planeAndOriginToMatrix3D(plane, origin, invert=False, offset=adsk.core.Point3D.create(0, 0, 0)):
-    plane_normal_xz = plane.normal.copy()
-    plane_normal_xz.y = 0
-    alpha = adsk.core.Vector3D.create(0, 0, 1).angleTo(plane_normal_xz)
-    if math.isnan(alpha):
-        alpha = 0
-
-    if invert:
-        alpha += math.pi
-
-    plane_normal_yz = plane.normal.copy()
-    plane_normal_yz.x = 0
-    beta = adsk.core.Vector3D.create(0, 0, 1).angleTo(plane_normal_yz)
-    if math.isnan(beta):
-        beta = 0
-
+def planeAndOriginToMatrix3D(plane, origin, invert=False, zOffset=0):
     plane_origin = plane.intersectWithLine(adsk.core.InfiniteLine3D.create(origin, plane.normal))
+    zOffsetVector = plane_origin.asVector()
+    zOffsetVector.normalize()
+    zOffsetVector.scaleBy(zOffset)
+    plane_origin.translateBy(zOffsetVector)
+
+    normal = plane.normal.copy()
+    uDirection = plane.uDirection.copy()
+    vDirection = plane.vDirection.copy()
+    if invert:
+        normal.scaleBy(-1)
+        uDirection.scaleBy(-1)
 
     matrix = adsk.core.Matrix3D.create()
 
-    matrixOffset = adsk.core.Matrix3D.create()
-    matrixOffset.setWithCoordinateSystem(offset, adsk.core.Vector3D.create(1, 0, 0), adsk.core.Vector3D.create(0, 1, 0), adsk.core.Vector3D.create(0, 0, 1))
-    matrix.transformBy(matrixOffset)
-
-    matrixAlpha = adsk.core.Matrix3D.create()
-    matrixAlpha.setToRotation(alpha, adsk.core.Vector3D.create(0, 1, 0), adsk.core.Point3D.create(0, 0, 0))
-    matrix.transformBy(matrixAlpha)
-
-    matrixBeta = adsk.core.Matrix3D.create()
-    matrixBeta.setToRotation(beta, adsk.core.Vector3D.create(1, 0, 0), adsk.core.Point3D.create(0, 0, 0))
-    matrix.transformBy(matrixBeta)
-
-    matrixOrigin = adsk.core.Matrix3D.create()
-    matrixOrigin.setWithCoordinateSystem(plane_origin, adsk.core.Vector3D.create(1, 0, 0), adsk.core.Vector3D.create(0, 1, 0), adsk.core.Vector3D.create(0, 0, 1))
-    matrix.transformBy(matrixOrigin)
+    matrix.setToAlignCoordinateSystems(
+        adsk.core.Point3D.create(0, 0, 0),
+        adsk.core.Vector3D.create(1, 0, 0),
+        adsk.core.Vector3D.create(0, 1, 0),
+        adsk.core.Vector3D.create(0, 0, 1),
+        plane_origin,
+        uDirection,
+        vDirection,
+        normal
+    )
 
     return matrix
 
@@ -427,14 +418,15 @@ class HelicalGear:
 
         return gear
 
-    def model_gear(self, parent_component, plane, origin, invert, center):
+    def model_gear(self, parent_component, plane, centerPoint, invert, center):
         # Create new component
-        offset = adsk.core.Point3D.create(0, 0, 0)
+        zOffset = 0
         if center and not self.herringbone:
-            offset.z -= self.width / 2
+            zOffset -= self.width / 2
         elif not center and self.herringbone:
-            offset.z += self.width / 2
-        component = parent_component.occurrences.addNewComponent(planeAndOriginToMatrix3D(plane, origin, invert, offset)).component
+            zOffset += self.width / 2
+        matrix = planeAndOriginToMatrix3D(plane, centerPoint, invert, zOffset)
+        component = parent_component.occurrences.addNewComponent(matrix).component
         component.name = 'Healical Gear ({0}{1}@{2:.2f} m={3})'.format(
             self.tooth_count,
             'L' if self.helix_angle < 0 else 'R',
@@ -677,9 +669,10 @@ class RackGear:
         )
         return lines
 
-    def model_gear(self, parent_component, plane, origin, invert, center):
+    def model_gear(self, parent_component, plane, centerPoint, invert, center):
         # Create new component
-        component = parent_component.occurrences.addNewComponent(planeAndOriginToMatrix3D(plane, origin, invert)).component
+        matrix = planeAndOriginToMatrix3D(plane, centerPoint, invert)
+        component = parent_component.occurrences.addNewComponent(matrix).component
         component.name = 'Healical Rack ({0}mm {1}@{2:.2f} m={3})'.format(
             self.length * 10,
             'L' if self.helix_angle < 0 else 'R',
@@ -834,6 +827,7 @@ class CommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             # Tabs
             tabSettings = inputs.addTabCommandInput("TabSettings", "Settings")
             tabAdvanced = inputs.addTabCommandInput("TabAdvanced", "Advanced")
+            tabPosition = inputs.addTabCommandInput("TabPosition", "Position")
             tabProperties = inputs.addTabCommandInput("TabProperties", "Properties")
 
             # Setting command Inputs
@@ -841,23 +835,6 @@ class CommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             ddType.listItems.add("External Gear", pers['DDType'] == "External Gear", "resources/external")
             ddType.listItems.add("Internal Gear", pers['DDType'] == "Internal Gear", "resources/internal")
             ddType.listItems.add("Rack Gear", pers['DDType'] == "Rack Gear", "resources/rack")
-
-            ddPlane = tabSettings.children.addSelectionInput("DDPlane", "Plane", "The Plane of the Gear")
-            ddPlane.addSelectionFilter("ConstructionPlanes")
-            ddPlane.addSelectionFilter("Profiles")
-            ddPlane.addSelectionFilter("Faces")
-            ddPlane.addSelection(adsk.core.Application.get().activeProduct.rootComponent.xYConstructionPlane)
-
-            ddOrigin = tabSettings.children.addSelectionInput("DDOrigin", "Origin", "The Origin of the Gear")
-            ddOrigin.addSelectionFilter("ConstructionPoints")
-            ddOrigin.addSelectionFilter("SketchPoints")
-            ddOrigin.addSelectionFilter("Vertices")
-            ddOrigin.addSelection(adsk.core.Application.get().activeProduct.rootComponent.originConstructionPoint)
-
-            ddDirection = tabSettings.children.addDropDownCommandInput("DDDirection", "Direction", 0)
-            ddDirection.listItems.add("Front", pers['DDDirection'] == "Front", "resources/front")
-            ddDirection.listItems.add("Back", pers['DDDirection'] == "Back", "resources/back")
-            refreshDirectionList(ddDirection, pers['DDType'] != "Rack Gear")
 
             viModule = tabSettings.children.addValueInput("VIModule", "Module", "mm",
                                                           adsk.core.ValueInput.createByReal(pers['VIModule']))
@@ -944,6 +921,24 @@ class CommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
 
             tbWarning2 = tabAdvanced.children.addTextBoxCommandInput("TBWarning2", "", '', 2, True)
 
+            # Position
+            ddPlane = tabPosition.children.addSelectionInput("DDPlane", "Plane", "The Plane of the Gear")
+            ddPlane.addSelectionFilter("ConstructionPlanes")
+            ddPlane.addSelectionFilter("Profiles")
+            ddPlane.addSelectionFilter("Faces")
+            ddPlane.addSelection(adsk.core.Application.get().activeProduct.rootComponent.xYConstructionPlane)
+
+            ddCenter = tabPosition.children.addSelectionInput("DDCenter", "Center", "The Center of the Gear")
+            ddCenter.addSelectionFilter("ConstructionPoints")
+            ddCenter.addSelectionFilter("SketchPoints")
+            ddCenter.addSelectionFilter("Vertices")
+            ddCenter.addSelection(adsk.core.Application.get().activeProduct.rootComponent.originConstructionPoint)
+
+            ddDirection = tabPosition.children.addDropDownCommandInput("DDDirection", "Direction", 0)
+            ddDirection.listItems.add("Front", pers['DDDirection'] == "Front", "resources/front")
+            ddDirection.listItems.add("Back", pers['DDDirection'] == "Back", "resources/back")
+            refreshDirectionList(ddDirection, pers['DDType'] != "Rack Gear")
+
             # Properties
             tbProperties = tabProperties.children.addTextBoxCommandInput("TBProperties", "", "", 5, True)
 
@@ -962,15 +957,54 @@ def refreshDirectionList(input, center):
 
 def selectedPlane(ddPlane):
     planeEntity = ddPlane.selection(0).entity
-    if hasattr(planeEntity, 'geometry'):
-        return planeEntity.geometry
-    else:
-        return planeEntity.plane
 
-def selectedOrigin(ddOrigin):
-    originEntity = ddOrigin.selection(0).entity
-    if hasattr(originEntity, 'geometry'):
-        return originEntity.geometry
+    if planeEntity.objectType == "adsk::fusion::ConstructionPlane":
+        return planeEntity.geometry
+    elif planeEntity.objectType == "adsk::fusion::Profile":
+        return planeEntity.plane
+    elif planeEntity.objectType == "adsk::fusion::BRepFace":
+        _, normal = planeEntity.evaluator.getNormalAtPoint(planeEntity.pointOnFace)
+        return adsk.core.Plane.create(planeEntity.pointOnFace, normal)
+
+def selectedCenterPoint(ddCenter):
+    centerEntity = ddCenter.selection(0).entity
+
+    if centerEntity.objectType == "adsk::fusion::SketchPoint":
+        return centerEntity.geometry
+    elif centerEntity.objectType == "adsk::fusion::ConstructionPoint":
+        return centerEntity.geometry
+    elif centerEntity.objectType == "adsk::fusion::BRepVertex":
+        return centerEntity.geometry
+
+#def selectedPlane(ddPlane):
+#    planeEntity = ddPlane.selection(0).entity
+#
+#    if planeEntity.objectType == "adsk::fusion::ConstructionPlane":
+#        # TODO: Coordinate in assembly context, world transform still required!
+#        return planeEntity.geometry
+#    elif planeEntity.objectType == "adsk::fusion::Profile":
+#        return adsk.core.Plane.createUsingDirections(
+#            adsk.core.Point3D.create(0, 0, 0),
+#            planeEntity.parentSketch.xDirection,
+#            planeEntity.parentSketch.yDirection
+#        )
+#    elif planeEntity.objectType == "adsk::fusion::BRepFace":
+#        _, normal = planeEntity.evaluator.getNormalAtPoint(planeEntity.pointOnFace)
+#        return adsk.core.Plane.create(
+#            adsk.core.Point3D.create(0, 0, 0),
+#            normal
+#        )
+
+#def selectedOrigin(ddOrigin):
+#    originEntity = ddOrigin.selection(0).entity
+#
+#    if originEntity.objectType == "adsk::fusion::SketchPoint":
+#        return originEntity.worldGeometry
+#    elif originEntity.objectType == "adsk::fusion::ConstructionPoint":
+#        # TODO: Coordinate in assembly context, world transform still required!
+#        return originEntity.geometry
+#    elif originEntity.objectType == "adsk::fusion::BRepVertex":
+#        return originEntity.geometry
 
 # Fires when the User executes the Command
 # Responsible for doing the changes to the document
@@ -983,11 +1017,11 @@ class CommandExecuteHandler(adsk.core.CommandEventHandler):
             # Saves inputs to dict for persistence
             preserve_inputs(args.command.commandInputs, pers)
             plane = selectedPlane(args.command.commandInputs.itemById("DDPlane"))
-            origin = selectedOrigin(args.command.commandInputs.itemById("DDOrigin"))
+            centerPoint = selectedCenterPoint(args.command.commandInputs.itemById("DDCenter"))
             invert = args.command.commandInputs.itemById("DDDirection").selectedItem.name == "Back"
             center = args.command.commandInputs.itemById("DDDirection").selectedItem.name == "Center"
             generate_gear(args.command.commandInputs).model_gear(
-                adsk.core.Application.get().activeProduct.rootComponent, plane, origin, invert, center)
+                adsk.core.Application.get().activeProduct.rootComponent, plane, centerPoint, invert, center)
         except:
             print(traceback.format_exc())
 
@@ -1004,11 +1038,11 @@ class CommandExecutePreviewHandler(adsk.core.CommandEventHandler):
             if (args.command.commandInputs.itemById("BVPreview").value):
                 preserve_inputs(args.command.commandInputs, pers)
                 plane = selectedPlane(args.command.commandInputs.itemById("DDPlane"))
-                origin = selectedOrigin(args.command.commandInputs.itemById("DDOrigin"))
+                centerPoint = selectedCenterPoint(args.command.commandInputs.itemById("DDCenter"))
                 invert = args.command.commandInputs.itemById("DDDirection").selectedItem.name == "Back"
                 center = args.command.commandInputs.itemById("DDDirection").selectedItem.name == "Center"
                 generate_gear(args.command.commandInputs).model_gear(
-                    adsk.core.Application.get().activeProduct.rootComponent, plane, origin, invert, center)
+                    adsk.core.Application.get().activeProduct.rootComponent, plane, centerPoint, invert, center)
                 args.isValidResult = True
             else:
                 args.isValidResult = False
