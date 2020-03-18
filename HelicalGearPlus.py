@@ -390,7 +390,8 @@ class HelicalGear:
 
     def model_gear(self, parent_component):
         # Create new component
-        component = parent_component.occurrences.addNewComponent(adsk.core.Matrix3D.create()).component
+        occurrence = parent_component.occurrences.addNewComponent(adsk.core.Matrix3D.create())
+        component = occurrence.component
         component.name = 'Healical Gear ({0}{1}@{2:.2f} m={3})'.format(
             self.tooth_count,
             'L' if self.helix_angle < 0 else 'R',
@@ -483,7 +484,7 @@ class HelicalGear:
         pitch_diameter_circle.isFixed = True
         if (base_feature):
             base_feature.finishEdit()
-        return component
+        return occurrence
 
 
 class RackGear:
@@ -636,7 +637,8 @@ class RackGear:
 
     def model_gear(self, parent_component):
         # Create new component
-        component = parent_component.occurrences.addNewComponent(adsk.core.Matrix3D.create()).component
+        occurrence = parent_component.occurrences.addNewComponent(adsk.core.Matrix3D.create())
+        component = occurrence.component
         component.name = 'Healical Rack ({0}mm {1}@{2:.2f} m={3})'.format(
             self.length * 10,
             'L' if self.helix_angle < 0 else 'R',
@@ -746,7 +748,7 @@ class RackGear:
         )
         pitch_diameter_line.isFixed = True
         pitch_diameter_line.isConstruction = True
-        return component
+        return occurrence
 
 
 # Fires when the CommandDefinition gets executed.
@@ -1137,6 +1139,18 @@ def generate_gear(commandInputs):
     return gear
 
 
+def move_to(occurrence, position=None, direction=None):
+    mat = adsk.core.Matrix3D.create()
+    if(direction):
+        mat.setToRotateTo(
+            adsk.core.Vector3D.create(0,0,1),
+            direction
+        )
+    if(position):
+        mat.translation = position.asVector()
+    occurrence.transform = mat
+
+    
 def run(context):
     try:
         app = adsk.core.Application.get()
