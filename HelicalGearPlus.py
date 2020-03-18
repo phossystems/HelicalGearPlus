@@ -792,6 +792,7 @@ class CommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             # Tabs
             tabSettings = inputs.addTabCommandInput("TabSettings", "Settings")
             tabAdvanced = inputs.addTabCommandInput("TabAdvanced", "Advanced")
+            tabPosition = inputs.addTabCommandInput("TabPosition", "Position")
             tabProperties = inputs.addTabCommandInput("TabProperties", "Properties")
 
             # Setting command Inputs
@@ -884,6 +885,30 @@ class CommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             '''
 
             tbWarning2 = tabAdvanced.children.addTextBoxCommandInput("TBWarning2", "", '', 2, True)
+
+            # Position
+            siOrigin = tabPosition.children.addSelectionInput("SIOrigin", "Center", "Select Gear Center")
+            siOrigin.addSelectionFilter("ConstructionPoints")
+            siOrigin.addSelectionFilter("SketchPoints")
+            siOrigin.addSelectionFilter("Vertices")
+            siOrigin.setSelectionLimits(0, 1)
+            siOrigin.isEnabled = False
+            
+            siPlane = tabPosition.children.addSelectionInput("SIPlane", "Plane", "Select Gear Plane")
+            siPlane.addSelectionFilter("ConstructionPlanes")
+            siPlane.addSelectionFilter("Profiles")
+            siPlane.addSelectionFilter("Faces")
+            siPlane.addSelectionFilter("ConstructionLines")
+            siPlane.addSelectionFilter("SketchLines")
+            siPlane.addSelectionFilter("LinearEdges")
+            siPlane.setSelectionLimits(0, 1)
+            siPlane.isEnabled = False
+
+            ddDirection = tabPosition.children.addDropDownCommandInput("DDDirection", "Direction", 0)
+            ddDirection.listItems.add("Front", True, "resources/front")
+            ddDirection.listItems.add("Center", False, "resources/center")
+            ddDirection.listItems.add("Back", False, "resources/back")
+
 
             # Properties
             tbProperties = tabProperties.children.addTextBoxCommandInput("TBProperties", "", "", 5, True)
