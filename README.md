@@ -15,6 +15,10 @@ Parts based on Ross Korsky's Helical gear generator
 <br>
 
 # Installation
+[Get it from the App Store!](https://apps.autodesk.com/FUSION/en/Detail/Index?id=1259509007239787473&appLang=en&os=Mac)
+
+**OR**
+
 * Download the Project as ZIP and extract it somewhere you can find again, but won't bother you. (or use git to clone it there)
 * Open Fusion360 and press ADD-INS > Scripts and Add-ins
 * Select the tab Add-Ins and click the green plus symbol next to "My Add-Ins"
