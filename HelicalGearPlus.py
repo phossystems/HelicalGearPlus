@@ -879,11 +879,6 @@ class CommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             viDedendum.tooltip = "Dedendum"
             viDedendum.tooltipDescription = "Represents the factor that the root diameter is below the pitch diameter."
 
-            ''' WIP
-            bvReset = tabAdvanced.children.addBoolValueInput("BVReset", "  Reset parameters  ", False)
-            bvReset.isFullWidth = True
-            '''
-
             tbWarning2 = tabAdvanced.children.addTextBoxCommandInput("TBWarning2", "", '', 2, True)
 
             # Position
@@ -892,7 +887,6 @@ class CommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             siOrigin.addSelectionFilter("SketchPoints")
             siOrigin.addSelectionFilter("Vertices")
             siOrigin.setSelectionLimits(0, 1)
-            siOrigin.isEnabled = False
             
             siPlane = tabPosition.children.addSelectionInput("SIPlane", "Plane", "Select Gear Plane")
             siPlane.addSelectionFilter("ConstructionPlanes")
@@ -902,12 +896,17 @@ class CommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             siPlane.addSelectionFilter("SketchLines")
             siPlane.addSelectionFilter("LinearEdges")
             siPlane.setSelectionLimits(0, 1)
-            siPlane.isEnabled = False
 
             ddDirection = tabPosition.children.addDropDownCommandInput("DDDirection", "Direction", 0)
             ddDirection.listItems.add("Front", True, "resources/front")
             ddDirection.listItems.add("Center", False, "resources/center")
             ddDirection.listItems.add("Back", False, "resources/back")
+
+            avRotation = tabPosition.children.addAngleValueCommandInput("AVRotation", "Rotation", adsk.core.ValueInput.createByReal(0))
+            avRotation.isVisible = False
+
+            diOffset = tabPosition.children.addDistanceValueCommandInput("DVOffset", "Offset",adsk.core.ValueInput.createByReal(0))
+            diOffset.isVisible = False
 
 
             # Properties
@@ -976,6 +975,7 @@ class CommandInputChangedHandler(adsk.core.InputChangedEventHandler):
 
     def notify(self, args):
         try:
+            #print(args.input.id)
             # Handles input visibillity based on gear type
             if (args.input.id == "DDType"):
                 gearType = args.input.selectedItem.name
@@ -989,7 +989,6 @@ class CommandInputChangedHandler(adsk.core.InputChangedEventHandler):
                 tbProperties = args.inputs.itemById("TBProperties")
                 tbProperties.numRows = len(str(gear).split('\n'))
                 tbProperties.text = str(gear)
-
             # Updates Warning Message
             if (not args.input.id[:2] == "TB"):
                 is_invalid = generate_gear(args.input.parentCommand.commandInputs).is_invalid
@@ -1003,25 +1002,19 @@ class CommandInputChangedHandler(adsk.core.InputChangedEventHandler):
                 else:
                     args.input.parentCommand.commandInputs.itemById("TBWarning1").formattedText = ''
                     args.input.parentCommand.commandInputs.itemById("TBWarning2").formattedText = ''
-            ''' WIP 
-            # Resets parameters
-            if(args.input.id == "BVReset"):
-                args.input.parentCommand.commandInputs.itemById("DDStandard").listItems.item(0).isSelected = True
-                args.input.parentCommand.commandInputs.itemById("DDStandard").listItems.item(0).isSelected = True
-                args.input.parentCommand.commandInputs.itemById("VIHelixAngle").value = 0.5235987755982988,
-                args.input.parentCommand.commandInputs.itemById("VIPressureAngle").value = 0.5235987755982988,
-                args.input.parentCommand.commandInputs.itemById("VIModule").value = 0.3,
-                args.input.parentCommand.commandInputs.itemById("ISTeeth").value = 16,
-                args.input.parentCommand.commandInputs.itemById("VIBacklash").value = 0.0,
-                args.input.parentCommand.commandInputs.itemById("VIWidth").value = 1.0,
-                args.input.parentCommand.commandInputs.itemById("VIHeight").value = 0.8,
-                args.input.parentCommand.commandInputs.itemById("VILength").value = 10.0,
-                args.input.parentCommand.commandInputs.itemById("VIDiameter").value = 8.0,
-                args.input.parentCommand.commandInputs.itemById("BVHerringbone").value = False,
-                args.input.parentCommand.commandInputs.itemById("BVPreview").value = False,
-                args.input.parentCommand.commandInputs.itemById("VIAddendum").value = 1,
-                args.input.parentCommand.commandInputs.itemById("VIDedendum").value = 1.25
-            '''
+            # Hides Positioning Manipulators when inactive
+            if(args.input.id == "APITabBar"):
+                if (args.inputs.itemById("TabPosition") and args.inputs.itemById("TabPosition").isActive):
+                    args.input.parentCommand.commandInputs.itemById("SIOrigin").isVisible = True
+                    args.input.parentCommand.commandInputs.itemById("SIPlane").isVisible = True
+                    args.input.parentCommand.commandInputs.itemById("DVOffset").isVisible = True
+                    args.input.parentCommand.commandInputs.itemById("AVRotation").isVisible = True
+                else:
+                    args.input.parentCommand.commandInputs.itemById("SIOrigin").isVisible = False
+                    args.input.parentCommand.commandInputs.itemById("SIPlane").isVisible = False
+                    args.input.parentCommand.commandInputs.itemById("DVOffset").isVisible = False
+                    args.input.parentCommand.commandInputs.itemById("AVRotation").isVisible = False
+
         except:
             print(traceback.format_exc())
 
