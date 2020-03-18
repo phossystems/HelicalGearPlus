@@ -483,6 +483,7 @@ class HelicalGear:
         pitch_diameter_circle.isFixed = True
         if (base_feature):
             base_feature.finishEdit()
+        return component
 
 
 class RackGear:
@@ -745,6 +746,7 @@ class RackGear:
         )
         pitch_diameter_line.isFixed = True
         pitch_diameter_line.isConstruction = True
+        return component
 
 
 # Fires when the CommandDefinition gets executed.
