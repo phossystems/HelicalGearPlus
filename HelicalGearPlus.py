@@ -971,19 +971,9 @@ class CommandExecutePreviewHandler(adsk.core.CommandEventHandler):
             if (args.command.commandInputs.itemById("BVPreview").value):
                 preserve_inputs(args.command.commandInputs, pers)
 
-                plane = get_primitive_from_selection(args.command.commandInputs.itemById("SIPlane").selection(0).entity)
-                point = get_primitive_from_selection(args.command.commandInputs.itemById("SIOrigin").selection(0).entity)
-                
-                side_offset = (0.5 - (args.command.commandInputs.itemById("DDDirection").selectedItem.index * 0.5)) * args.command.commandInputs.itemById("VIWidth").value
-
                 gear = generate_gear(args.command.commandInputs).model_gear(adsk.core.Application.get().activeProduct.rootComponent)
-                gear.transform = move_matrix(
-                    project_point_on_plane(point, plane),
-                    plane.normal,
-                    args.command.commandInputs.itemById("AVRotation").value,
-                    args.command.commandInputs.itemById("DVOffset").value + side_offset
-                )
                 
+                move_gear(gear, args.command.commandInputs)
                 
                 args.isValidResult = True
             else:
@@ -1178,6 +1168,60 @@ def generate_gear(commandInputs):
                     commandInputs.itemById("VIDiameter").value
                 )
     return gear
+
+
+def move_gear(gear, commandInputs):
+
+    side_offset = (0.5 - (commandInputs.itemById("DDDirection").selectedItem.index * 0.5)) * commandInputs.itemById("VIWidth").value
+
+
+    if(commandInputs.itemById("SIOrigin").selectionCount):
+        point = commandInputs.itemById("SIOrigin").selection(0).entity
+        pointPrim = get_primitive_from_selection(point)
+
+        # Both Plane and Origin selected, regular move
+        if(commandInputs.itemById("SIPlane").selectionCount):
+            plane = commandInputs.itemById("SIPlane").selection(0).entity
+            planePrim = get_primitive_from_selection(plane)
+
+        # Just sketch point selected, use sketch plane as plane
+        elif(point.objectType == "adsk::fusion::SketchPoint"):
+            planePrim = adsk.core.Plane.createUsingDirections(
+                point.parentSketch.origin,
+                point.parentSketch.xDirection,
+                point.parentSketch.yDirection
+            )
+
+        # No useable plane selected
+        else:
+            planePrim = adsk.core.Plane.createUsingDirections(
+                pointPrim,
+                adsk.core.Vector3D.create(1,0,0),
+                adsk.core.Vector3D.create(0,1,0)
+            )
+            
+
+        gear.transform = move_matrix(
+            project_point_on_plane(pointPrim, planePrim),
+            planePrim.normal,
+            commandInputs.itemById("AVRotation").value,
+            commandInputs.itemById("DVOffset").value + side_offset
+        )
+    else:
+        # No valid selection combination, no move just side & rotation
+        gear.transform = move_matrix(
+            adsk.core.Point3D.create(0,0,0),
+            adsk.core.Vector3D.create(0,0,1),
+            commandInputs.itemById("AVRotation").value,
+            commandInputs.itemById("DVOffset").value + side_offset
+        )
+
+
+    
+    
+    
+                    
+
 
 
 def move_matrix(position, direction, rotation, offset):
