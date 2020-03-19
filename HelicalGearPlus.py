@@ -919,9 +919,9 @@ class CommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             siPlane.addSelectionFilter("ConstructionPlanes")
             siPlane.addSelectionFilter("Profiles")
             siPlane.addSelectionFilter("Faces")
-            siPlane.addSelectionFilter("ConstructionLines")
-            siPlane.addSelectionFilter("SketchLines")
-            siPlane.addSelectionFilter("LinearEdges")
+            #siPlane.addSelectionFilter("ConstructionLines")
+            #siPlane.addSelectionFilter("SketchLines")
+            #siPlane.addSelectionFilter("LinearEdges")
             siPlane.setSelectionLimits(0, 1)
 
             ddDirection = tabPosition.children.addDropDownCommandInput("DDDirection", "Direction", 0)
@@ -932,8 +932,8 @@ class CommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             avRotation = tabPosition.children.addAngleValueCommandInput("AVRotation", "Rotation", adsk.core.ValueInput.createByReal(0))
             avRotation.isVisible = False
 
-            diOffset = tabPosition.children.addDistanceValueCommandInput("DVOffset", "Offset",adsk.core.ValueInput.createByReal(0))
-            diOffset.isVisible = False
+            dvOffset = tabPosition.children.addDistanceValueCommandInput("DVOffset", "Offset",adsk.core.ValueInput.createByReal(0))
+            dvOffset.isVisible = False
 
 
             # Properties
@@ -970,8 +970,21 @@ class CommandExecutePreviewHandler(adsk.core.CommandEventHandler):
         try:
             if (args.command.commandInputs.itemById("BVPreview").value):
                 preserve_inputs(args.command.commandInputs, pers)
-                generate_gear(args.command.commandInputs).model_gear(
-                    adsk.core.Application.get().activeProduct.rootComponent)
+
+                plane = get_primitive_from_selection(args.command.commandInputs.itemById("SIPlane").selection(0).entity)
+                point = get_primitive_from_selection(args.command.commandInputs.itemById("SIOrigin").selection(0).entity)
+                
+                side_offset = (0.5 - (args.command.commandInputs.itemById("DDDirection").selectedItem.index * 0.5)) * args.command.commandInputs.itemById("VIWidth").value
+
+                gear = generate_gear(args.command.commandInputs).model_gear(adsk.core.Application.get().activeProduct.rootComponent)
+                gear.transform = move_matrix(
+                    project_point_on_plane(point, plane),
+                    plane.normal,
+                    args.command.commandInputs.itemById("AVRotation").value,
+                    args.command.commandInputs.itemById("DVOffset").value + side_offset
+                )
+                
+                
                 args.isValidResult = True
             else:
                 args.isValidResult = False
@@ -1041,6 +1054,9 @@ class CommandInputChangedHandler(adsk.core.InputChangedEventHandler):
                     args.input.parentCommand.commandInputs.itemById("SIPlane").isVisible = False
                     args.input.parentCommand.commandInputs.itemById("DVOffset").isVisible = False
                     args.input.parentCommand.commandInputs.itemById("AVRotation").isVisible = False
+            # Update manipulators
+            #if(args.input.id == "SIOrigin" or args.input.id == "SIPlane"):
+                
 
         except:
             print(traceback.format_exc())
@@ -1164,18 +1180,77 @@ def generate_gear(commandInputs):
     return gear
 
 
-def move_to(occurrence, position=None, direction=None):
+def move_matrix(position, direction, rotation, offset):
     mat = adsk.core.Matrix3D.create()
-    if(direction):
-        mat.setToRotateTo(
-            adsk.core.Vector3D.create(0,0,1),
-            direction
+
+    p = adsk.core.Plane.create(position, direction)
+
+    mat.setToAlignCoordinateSystems(
+        adsk.core.Point3D.create(0, 0, -offset),
+        adsk.core.Vector3D.create(math.cos(rotation), math.sin(rotation), 0),
+        adsk.core.Vector3D.create(-math.sin(rotation), math.cos(rotation), 0),
+        adsk.core.Vector3D.create(0, 0, 1),
+        position,
+        p.uDirection,
+        p.vDirection,
+        direction
+    )
+
+    return mat
+
+
+def get_primitive_from_selection(selection):
+    # Construction Plane
+    if selection.objectType == "adsk::fusion::ConstructionPlane":
+        # TODO: Coordinate in assembly context, world transform still required!
+        return selection.geometry
+    # Sketch Profile
+    if selection.objectType == "adsk::fusion::Profile":
+        return adsk.core.Plane.createUsingDirections(
+            selection.parentSketch.origin,
+            selection.parentSketch.xDirection,
+            selection.parentSketch.yDirection
         )
-    if(position):
-        mat.translation = position.asVector()
-    occurrence.transform = mat
+    # BRepFace
+    if selection.objectType == "adsk::fusion::BRepFace":
+        _, normal = selection.evaluator.getNormalAtPoint(selection.pointOnFace)
+        return adsk.core.Plane.create(
+            selection.pointOnFace,
+            normal
+        )
+    # Construction Axis
+    if selection.objectType == "adsk::fusion::ConstructionAxis":
+        # TODO: Coordinate in assembly context, world transform still required!
+        return selection.geometry
+    #TODO: BRep Edge, Sketch line
+    
+    # Construction Point
+    if selection.objectType == "adsk::fusion::ConstructionPoint":
+        # TODO: Coordinate in assembly context, world transform still required!
+        return selection.geometry
+    # Sketch Point
+    if selection.objectType == "adsk::fusion::SketchPoint":
+        return selection.worldGeometry
+    # BRepVertex
+    if selection.objectType == "adsk::fusion::BRepVertex":
+        return selection.geometry
 
     
+def project_point_on_plane(point, plane):
+    origin_to_point = plane.origin.vectorTo(point)
+
+    normal = plane.normal.copy()
+    normal.normalize()
+    dist_pt_to_pln = normal.dotProduct(origin_to_point)
+
+    normal.scaleBy(-dist_pt_to_pln)
+
+    pt_on_pln = point.copy()
+    pt_on_pln.translateBy(normal)
+
+    return pt_on_pln
+    
+
 def run(context):
     try:
         app = adsk.core.Application.get()
