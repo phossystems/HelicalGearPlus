@@ -953,8 +953,11 @@ class CommandExecuteHandler(adsk.core.CommandEventHandler):
         try:
             # Saves inputs to dict for persistence
             preserve_inputs(args.command.commandInputs, pers)
-            generate_gear(args.command.commandInputs).model_gear(
-                adsk.core.Application.get().activeProduct.rootComponent)
+
+            gear = generate_gear(args.command.commandInputs).model_gear(adsk.core.Application.get().activeProduct.rootComponent)
+                
+            move_gear(gear, args.command.commandInputs)
+
         except:
             print(traceback.format_exc())
 
@@ -1200,7 +1203,6 @@ def move_gear(gear, commandInputs):
                 adsk.core.Vector3D.create(0,1,0)
             )
             
-
         gear.transform = move_matrix(
             project_point_on_plane(pointPrim, planePrim),
             planePrim.normal,
