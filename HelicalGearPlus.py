@@ -398,34 +398,71 @@ class HelicalGear:
             abs(math.degrees(self.helix_angle)),
             round(self.normal_module * 10, 4))
 
+        # Creates BaseFeature if DesignType is parametric 
         if (parent_component.parentDesign.designType):
             base_feature = component.features.baseFeatures.add()
             base_feature.startEdit()
         else:
             base_feature = None
+
         # Creates sketch and draws tooth profile
-        sketch = component.sketches.add(component.xYConstructionPlane)
         involute = Involute(self)
-        sketch.isComputeDeferred = True
-        # All Teeth
-        for i in range(self.tooth_count):
-            involute.draw(sketch, 0, (i / self.tooth_count) * 2 * math.pi)
-        # Base Circle
-        sketch.sketchCurves.sketchCircles.addByCenterRadius(adsk.core.Point3D.create(0, 0, 0), self.root_diameter / 2)
-        # Sweep path
-        if (self.herringbone):
+        
+        # Creates profile on z=0 if herringbone and on bottom if not
+        if(not self.herringbone):
+            plane = adsk.core.Plane.create(adsk.core.Point3D.create(0, 0, -self.width/2),
+                                       adsk.core.Vector3D.create(0,0,1))
+            # Creates an object responsible for passing all required data to create a construction plane
+            planeInput = component.constructionPlanes.createInput()
+            # Sets the plane input by plane
+            planeInput.setByPlane(plane)
+            # Adds plain input to construction planes
+            cPlane = component.constructionPlanes.add(planeInput)
+            sketch = component.sketches.add(cPlane)
+            cPlane.deleteMe()
+            sketch.isComputeDeferred = True
+            # Draws All Teeth
+            # TODO: Optimize by copying instead of regenerating
+            for i in range(self.tooth_count):
+                involute.draw(sketch, 0, (i / self.tooth_count) * 2 * math.pi)
+            # Base Circle
+            sketch.sketchCurves.sketchCircles.addByCenterRadius(adsk.core.Point3D.create(0, 0, 0), self.root_diameter / 2)
+        else:
+            sketch = component.sketches.add(component.xYConstructionPlane)
+            sketch.isComputeDeferred = True
+            # Draws All Teeth
+            # TODO: Optimize by copying instead of regenerating
+            for i in range(self.tooth_count):
+                involute.draw(sketch, 0, (i / self.tooth_count) * 2 * math.pi)
+            # Base Circle
+            sketch.sketchCurves.sketchCircles.addByCenterRadius(adsk.core.Point3D.create(0, 0, 0), self.root_diameter / 2)
+
+        # Creates path line for sweep feature
+        if (not self.herringbone):
+            line1 = sketch.sketchCurves.sketchLines.addByTwoPoints(adsk.core.Point3D.create(0, 0, 0),
+                                                                   adsk.core.Point3D.create(0, 0, self.width))
+        else: 
             line1 = sketch.sketchCurves.sketchLines.addByTwoPoints(adsk.core.Point3D.create(0, 0, 0),
                                                                    adsk.core.Point3D.create(0, 0, self.width / 2))
             line2 = sketch.sketchCurves.sketchLines.addByTwoPoints(adsk.core.Point3D.create(0, 0, 0),
                                                                    adsk.core.Point3D.create(0, 0, -self.width / 2))
-        else:
-            line1 = sketch.sketchCurves.sketchLines.addByTwoPoints(adsk.core.Point3D.create(0, 0, 0),
-                                                                   adsk.core.Point3D.create(0, 0, self.width))
+
+        # Reactivates sketch computation and puts all profules into an OC              
         sketch.isComputeDeferred = False
         profs = adsk.core.ObjectCollection.create()
         for prof in sketch.profiles:
             profs.add(prof)
-        if (self.herringbone):
+
+        # Creates sweeep features
+        if(not self.herringbone):
+            path1 = component.features.createPath(line1)
+            sweepInput = component.features.sweepFeatures.createInput(profs, path1,
+                                                                      adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
+            sweepInput.twistAngle = adsk.core.ValueInput.createByReal(-self.t_for(self.width))
+            if (base_feature):
+                sweepInput.targetBaseFeature = base_feature
+            gearBody = sweepFeature = component.features.sweepFeatures.add(sweepInput).bodies.item(0)
+        else:
             path1 = component.features.createPath(line1)
             sweepInput = component.features.sweepFeatures.createInput(profs, path1,
                                                                       adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
@@ -441,47 +478,35 @@ class HelicalGear:
             if (base_feature):
                 sweepInput.targetBaseFeature = base_feature
             gearBody = sweepFeature = component.features.sweepFeatures.add(sweepInput).bodies.item(0)
-        else:
-            path1 = component.features.createPath(line1)
-            sweepInput = component.features.sweepFeatures.createInput(profs, path1,
-                                                                      adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
-            sweepInput.twistAngle = adsk.core.ValueInput.createByReal(-self.t_for(self.width))
-            if (base_feature):
-                sweepInput.targetBaseFeature = base_feature
-            gearBody = sweepFeature = component.features.sweepFeatures.add(sweepInput).bodies.item(0)
+
+        # "Inverts" internal Gears
         if (self.internal_outside_diameter):
             # The temporaryBRep manager is a tool for creating 3d geometry without the use of features
             # The word temporary referrs to the geometry being created being virtual, but It can easily be converted to actual geometry
             tbm = adsk.fusion.TemporaryBRepManager.get()
-            if (self.herringbone):
-                cyl = cylinder = tbm.createCylinderOrCone(adsk.core.Point3D.create(0, 0, -self.width / 2),
-                                                          self.internal_outside_diameter / 2,
-                                                          adsk.core.Point3D.create(0, 0, self.width / 2),
-                                                          self.internal_outside_diameter / 2)
-            else:
-                cyl = cylinder = tbm.createCylinderOrCone(adsk.core.Point3D.create(0, 0, 0),
-                                                          self.internal_outside_diameter / 2,
-                                                          adsk.core.Point3D.create(0, 0, self.width),
-                                                          self.internal_outside_diameter / 2)
+            cyl = cylinder = tbm.createCylinderOrCone(adsk.core.Point3D.create(0, 0, -self.width / 2),
+                                                    self.internal_outside_diameter / 2,
+                                                    adsk.core.Point3D.create(0, 0, self.width / 2),
+                                                    self.internal_outside_diameter / 2)
             tbm.booleanOperation(cyl, tbm.copy(gearBody), 0)
             if (base_feature):
                 component.bRepBodies.add(cyl, base_feature)
             else:
                 component.bRepBodies.add(cyl)
             gearBody.deleteMe()
+
         # Delete tooth sketch for performance
         sketch.deleteMe()
-        # Add pitch diameter sketch
+
+        # Draws pitch diameter
         pitch_diameter_sketch = component.sketches.add(component.xYConstructionPlane)
         pitch_diameter_sketch.name = "PD: {0:.3f}mm".format(self.pitch_diameter * 10)
-        if (self.herringbone):
-            pitch_diameter_circle = pitch_diameter_sketch.sketchCurves.sketchCircles.addByCenterRadius(
-                adsk.core.Point3D.create(0, 0, 0), self.pitch_diameter / 2)
-        else:
-            pitch_diameter_circle = pitch_diameter_sketch.sketchCurves.sketchCircles.addByCenterRadius(
-                adsk.core.Point3D.create(0, 0, self.width / 2), self.pitch_diameter / 2)
+        pitch_diameter_circle = pitch_diameter_sketch.sketchCurves.sketchCircles.addByCenterRadius(
+            adsk.core.Point3D.create(0, 0, 0), self.pitch_diameter / 2)
         pitch_diameter_circle.isConstruction = True
         pitch_diameter_circle.isFixed = True
+
+        # Finishes BaseFeature if it exists
         if (base_feature):
             base_feature.finishEdit()
         return occurrence
