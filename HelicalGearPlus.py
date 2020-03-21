@@ -15,6 +15,10 @@ import math
 # Global set of event handlers to keep them referenced for the duration of the command
 _handlers = []
 
+# Caches last gear for 
+lastGear = None
+lastInput = ""
+
 COMMAND_ID = "helicalGearPlus"
 COMMAND_NAME = "Helical Gear+"
 COMMAND_TOOLTIP = "Generates Helical Gears"
@@ -389,6 +393,10 @@ class HelicalGear:
         return gear
 
     def model_gear(self, parent_component):
+        
+        # The temporaryBRep manager is a tool for creating 3d geometry without the use of features
+        # The word temporary referrs to the geometry being created being virtual, but It can easily be converted to actual geometry
+        tbm = adsk.fusion.TemporaryBRepManager.get()
         # Create new component
         occurrence = parent_component.occurrences.addNewComponent(adsk.core.Matrix3D.create())
         component = occurrence.component
@@ -481,9 +489,6 @@ class HelicalGear:
 
         # "Inverts" internal Gears
         if (self.internal_outside_diameter):
-            # The temporaryBRep manager is a tool for creating 3d geometry without the use of features
-            # The word temporary referrs to the geometry being created being virtual, but It can easily be converted to actual geometry
-            tbm = adsk.fusion.TemporaryBRepManager.get()
             cyl = cylinder = tbm.createCylinderOrCone(adsk.core.Point3D.create(0, 0, -self.width / 2),
                                                     self.internal_outside_diameter / 2,
                                                     adsk.core.Point3D.create(0, 0, self.width / 2),
@@ -509,6 +514,10 @@ class HelicalGear:
         # Finishes BaseFeature if it exists
         if (base_feature):
             base_feature.finishEdit()
+
+        global lastGear 
+        lastGear = tbm.copy(base_feature.bodies[0])
+
         return occurrence
 
 
@@ -933,6 +942,10 @@ class CommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             avRotation.isVisible = False
 
             dvOffset = tabPosition.children.addDistanceValueCommandInput("DVOffset", "Offset",adsk.core.ValueInput.createByReal(0))
+            dvOffset.setManipulator(
+                adsk.core.Point3D.create(0,0,0),
+                adsk.core.Vector3D.create(0,0,1)
+            )
             dvOffset.isVisible = False
 
 
@@ -974,7 +987,19 @@ class CommandExecutePreviewHandler(adsk.core.CommandEventHandler):
             if (args.command.commandInputs.itemById("BVPreview").value):
                 preserve_inputs(args.command.commandInputs, pers)
 
-                gear = generate_gear(args.command.commandInputs).model_gear(adsk.core.Application.get().activeProduct.rootComponent)
+                global lastInput
+                global lastGear
+                if(lastInput in ["APITabBar", "SIPlane", "SIOrigin", "DDDirection", "AVRotation", "DVOffset"] and lastGear):
+                    gear = adsk.core.Application.get().activeProduct.rootComponent.occurrences.addNewComponent(adsk.core.Matrix3D.create())
+
+                    base_feature = gear.component.features.baseFeatures.add()
+                    base_feature.startEdit()
+
+                    gear.component.bRepBodies.add(lastGear, base_feature)
+
+                    base_feature.finishEdit()
+                else:
+                    gear = generate_gear(args.command.commandInputs).model_gear(adsk.core.Application.get().activeProduct.rootComponent)
                 
                 move_gear(gear, args.command.commandInputs)
                 
@@ -1008,7 +1033,8 @@ class CommandInputChangedHandler(adsk.core.InputChangedEventHandler):
 
     def notify(self, args):
         try:
-            #print(args.input.id)
+            global lastInput
+            lastInput = args.input.id
             # Handles input visibillity based on gear type
             if (args.input.id == "DDType"):
                 gearType = args.input.selectedItem.name
@@ -1219,13 +1245,6 @@ def move_gear(gear, commandInputs):
         )
 
 
-    
-    
-    
-                    
-
-
-
 def move_matrix(position, direction, rotation, offset):
     mat = adsk.core.Matrix3D.create()
 
@@ -1233,8 +1252,8 @@ def move_matrix(position, direction, rotation, offset):
 
     mat.setToAlignCoordinateSystems(
         adsk.core.Point3D.create(0, 0, -offset),
-        adsk.core.Vector3D.create(math.cos(rotation), math.sin(rotation), 0),
-        adsk.core.Vector3D.create(-math.sin(rotation), math.cos(rotation), 0),
+        adsk.core.Vector3D.create(math.cos(-rotation), math.sin(-rotation), 0),
+        adsk.core.Vector3D.create(-math.sin(-rotation), math.cos(-rotation), 0),
         adsk.core.Vector3D.create(0, 0, 1),
         position,
         p.uDirection,
