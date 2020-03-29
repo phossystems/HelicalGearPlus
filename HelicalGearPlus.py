@@ -195,7 +195,7 @@ class Involute:
 
 def planeAndOriginToMatrix3D(plane, origin, invert=False, zOffset=0):
     plane_origin = plane.intersectWithLine(adsk.core.InfiniteLine3D.create(origin, plane.normal))
-    zOffsetVector = plane_origin.asVector()
+    zOffsetVector = plane.normal.copy()
     zOffsetVector.normalize()
     zOffsetVector.scaleBy(zOffset)
     plane_origin.translateBy(zOffsetVector)
