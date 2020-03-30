@@ -1323,6 +1323,7 @@ def get_primitive_from_selection(selection):
     if selection.objectType == "adsk::fusion::ConstructionPlane":
         # TODO: Coordinate in assembly context, world transform still required!
         return selection.geometry
+
     # Sketch Profile
     if selection.objectType == "adsk::fusion::Profile":
         return adsk.core.Plane.createUsingDirections(
@@ -1330,6 +1331,7 @@ def get_primitive_from_selection(selection):
             selection.parentSketch.xDirection,
             selection.parentSketch.yDirection
         )
+
     # BRepFace
     if selection.objectType == "adsk::fusion::BRepFace":
         _, normal = selection.evaluator.getNormalAtPoint(selection.pointOnFace)
@@ -1337,19 +1339,33 @@ def get_primitive_from_selection(selection):
             selection.pointOnFace,
             normal
         )
+
     # Construction Axis
     if selection.objectType == "adsk::fusion::ConstructionAxis":
         # TODO: Coordinate in assembly context, world transform still required!
         return selection.geometry
-    #TODO: BRep Edge, Sketch line
+
+    # BRepEdge
+    if selection.objectType == "adsk::fusion::BRepEdge":
+        _, tangent = selection.evaluator.getTangent(0)
+        return adsk.core.InfiniteLine3D.create(
+            selection.pointOnEdge
+            tangent
+        )
+    
+    # Sketch Line
+    if selection.objectType == "adsk::fusion::SketchLine":
+        return selection.worldGeometry
     
     # Construction Point
     if selection.objectType == "adsk::fusion::ConstructionPoint":
         # TODO: Coordinate in assembly context, world transform still required!
         return selection.geometry
+
     # Sketch Point
     if selection.objectType == "adsk::fusion::SketchPoint":
         return selection.worldGeometry
+
     # BRepVertex
     if selection.objectType == "adsk::fusion::BRepVertex":
         return selection.geometry
