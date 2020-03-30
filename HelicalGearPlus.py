@@ -392,7 +392,9 @@ class HelicalGear:
 
         return gear
 
-    def model_gear(self, parent_component):
+    def model_gear(self, parent_component, same_as_last=False):
+        # Storres a copy of the last gear generated to speed up regeneation of the same gear
+        global lastGear 
         
         # The temporaryBRep manager is a tool for creating 3d geometry without the use of features
         # The word temporary referrs to the geometry being created being virtual, but It can easily be converted to actual geometry
@@ -413,110 +415,120 @@ class HelicalGear:
         else:
             base_feature = None
 
-        # Creates sketch and draws tooth profile
-        involute = Involute(self)
-        
-        # Creates profile on z=0 if herringbone and on bottom if not
-        if(not self.herringbone):
-            plane = adsk.core.Plane.create(adsk.core.Point3D.create(0, 0, -self.width/2),
-                                       adsk.core.Vector3D.create(0,0,1))
-            # Creates an object responsible for passing all required data to create a construction plane
-            planeInput = component.constructionPlanes.createInput()
-            # Sets the plane input by plane
-            planeInput.setByPlane(plane)
-            # Adds plain input to construction planes
-            cPlane = component.constructionPlanes.add(planeInput)
-            sketch = component.sketches.add(cPlane)
-            cPlane.deleteMe()
-            sketch.isComputeDeferred = True
-            # Draws All Teeth
-            # TODO: Optimize by copying instead of regenerating
-            for i in range(self.tooth_count):
-                involute.draw(sketch, 0, (i / self.tooth_count) * 2 * math.pi)
-            # Base Circle
-            sketch.sketchCurves.sketchCircles.addByCenterRadius(adsk.core.Point3D.create(0, 0, 0), self.root_diameter / 2)
-        else:
-            sketch = component.sketches.add(component.xYConstructionPlane)
-            sketch.isComputeDeferred = True
-            # Draws All Teeth
-            # TODO: Optimize by copying instead of regenerating
-            for i in range(self.tooth_count):
-                involute.draw(sketch, 0, (i / self.tooth_count) * 2 * math.pi)
-            # Base Circle
-            sketch.sketchCurves.sketchCircles.addByCenterRadius(adsk.core.Point3D.create(0, 0, 0), self.root_diameter / 2)
+        if(not (same_as_last and lastGear)):
 
-        # Creates path line for sweep feature
-        if (not self.herringbone):
-            line1 = sketch.sketchCurves.sketchLines.addByTwoPoints(adsk.core.Point3D.create(0, 0, 0),
-                                                                   adsk.core.Point3D.create(0, 0, self.width))
-        else: 
-            line1 = sketch.sketchCurves.sketchLines.addByTwoPoints(adsk.core.Point3D.create(0, 0, 0),
-                                                                   adsk.core.Point3D.create(0, 0, self.width / 2))
-            line2 = sketch.sketchCurves.sketchLines.addByTwoPoints(adsk.core.Point3D.create(0, 0, 0),
-                                                                   adsk.core.Point3D.create(0, 0, -self.width / 2))
-
-        # Reactivates sketch computation and puts all profules into an OC              
-        sketch.isComputeDeferred = False
-        profs = adsk.core.ObjectCollection.create()
-        for prof in sketch.profiles:
-            profs.add(prof)
-
-        # Creates sweeep features
-        if(not self.herringbone):
-            path1 = component.features.createPath(line1)
-            sweepInput = component.features.sweepFeatures.createInput(profs, path1,
-                                                                      adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
-            sweepInput.twistAngle = adsk.core.ValueInput.createByReal(-self.t_for(self.width))
-            if (base_feature):
-                sweepInput.targetBaseFeature = base_feature
-            gearBody = sweepFeature = component.features.sweepFeatures.add(sweepInput).bodies.item(0)
-        else:
-            path1 = component.features.createPath(line1)
-            sweepInput = component.features.sweepFeatures.createInput(profs, path1,
-                                                                      adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
-            sweepInput.twistAngle = adsk.core.ValueInput.createByReal(-self.t_for(self.width / 2))
-            if (base_feature):
-                sweepInput.targetBaseFeature = base_feature
-            sweepFeature = component.features.sweepFeatures.add(sweepInput)
-
-            path2 = component.features.createPath(line2)
-            sweepInput = component.features.sweepFeatures.createInput(profs, path2,
-                                                                      adsk.fusion.FeatureOperations.JoinFeatureOperation)
-            sweepInput.twistAngle = adsk.core.ValueInput.createByReal(self.t_for(self.width / 2))
-            if (base_feature):
-                sweepInput.targetBaseFeature = base_feature
-            gearBody = sweepFeature = component.features.sweepFeatures.add(sweepInput).bodies.item(0)
-
-        # "Inverts" internal Gears
-        if (self.internal_outside_diameter):
-            cyl = cylinder = tbm.createCylinderOrCone(adsk.core.Point3D.create(0, 0, -self.width / 2),
-                                                    self.internal_outside_diameter / 2,
-                                                    adsk.core.Point3D.create(0, 0, self.width / 2),
-                                                    self.internal_outside_diameter / 2)
-            tbm.booleanOperation(cyl, tbm.copy(gearBody), 0)
-            if (base_feature):
-                component.bRepBodies.add(cyl, base_feature)
+            # Creates sketch and draws tooth profile
+            involute = Involute(self)
+            
+            # Creates profile on z=0 if herringbone and on bottom if not
+            if(not self.herringbone):
+                plane = adsk.core.Plane.create(adsk.core.Point3D.create(0, 0, -self.width/2),
+                                        adsk.core.Vector3D.create(0,0,1))
+                # Creates an object responsible for passing all required data to create a construction plane
+                planeInput = component.constructionPlanes.createInput()
+                # Sets the plane input by plane
+                planeInput.setByPlane(plane)
+                # Adds plain input to construction planes
+                cPlane = component.constructionPlanes.add(planeInput)
+                sketch = component.sketches.add(cPlane)
+                cPlane.deleteMe()
+                sketch.isComputeDeferred = True
+                # Draws All Teeth
+                # TODO: Optimize by copying instead of regenerating
+                for i in range(self.tooth_count):
+                    involute.draw(sketch, 0, (i / self.tooth_count) * 2 * math.pi)
+                # Base Circle
+                sketch.sketchCurves.sketchCircles.addByCenterRadius(adsk.core.Point3D.create(0, 0, 0), self.root_diameter / 2)
             else:
-                component.bRepBodies.add(cyl)
-            gearBody.deleteMe()
+                sketch = component.sketches.add(component.xYConstructionPlane)
+                sketch.isComputeDeferred = True
+                # Draws All Teeth
+                # TODO: Optimize by copying instead of regenerating
+                for i in range(self.tooth_count):
+                    involute.draw(sketch, 0, (i / self.tooth_count) * 2 * math.pi)
+                # Base Circle
+                sketch.sketchCurves.sketchCircles.addByCenterRadius(adsk.core.Point3D.create(0, 0, 0), self.root_diameter / 2)
 
-        # Delete tooth sketch for performance
-        sketch.deleteMe()
+            # Creates path line for sweep feature
+            if (not self.herringbone):
+                line1 = sketch.sketchCurves.sketchLines.addByTwoPoints(adsk.core.Point3D.create(0, 0, 0),
+                                                                    adsk.core.Point3D.create(0, 0, self.width))
+            else: 
+                line1 = sketch.sketchCurves.sketchLines.addByTwoPoints(adsk.core.Point3D.create(0, 0, 0),
+                                                                    adsk.core.Point3D.create(0, 0, self.width / 2))
+                line2 = sketch.sketchCurves.sketchLines.addByTwoPoints(adsk.core.Point3D.create(0, 0, 0),
+                                                                    adsk.core.Point3D.create(0, 0, -self.width / 2))
 
-        # Draws pitch diameter
-        pitch_diameter_sketch = component.sketches.add(component.xYConstructionPlane)
-        pitch_diameter_sketch.name = "PD: {0:.3f}mm".format(self.pitch_diameter * 10)
-        pitch_diameter_circle = pitch_diameter_sketch.sketchCurves.sketchCircles.addByCenterRadius(
-            adsk.core.Point3D.create(0, 0, 0), self.pitch_diameter / 2)
-        pitch_diameter_circle.isConstruction = True
-        pitch_diameter_circle.isFixed = True
+            # Reactivates sketch computation and puts all profules into an OC              
+            sketch.isComputeDeferred = False
+            profs = adsk.core.ObjectCollection.create()
+            for prof in sketch.profiles:
+                profs.add(prof)
+
+            # Creates sweeep features
+            if(not self.herringbone):
+                path1 = component.features.createPath(line1)
+                sweepInput = component.features.sweepFeatures.createInput(profs, path1,
+                                                                        adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
+                sweepInput.twistAngle = adsk.core.ValueInput.createByReal(-self.t_for(self.width))
+                if (base_feature):
+                    sweepInput.targetBaseFeature = base_feature
+                gearBody = sweepFeature = component.features.sweepFeatures.add(sweepInput).bodies.item(0)
+            else:
+                path1 = component.features.createPath(line1)
+                sweepInput = component.features.sweepFeatures.createInput(profs, path1,
+                                                                        adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
+                sweepInput.twistAngle = adsk.core.ValueInput.createByReal(-self.t_for(self.width / 2))
+                if (base_feature):
+                    sweepInput.targetBaseFeature = base_feature
+                sweepFeature = component.features.sweepFeatures.add(sweepInput)
+
+                path2 = component.features.createPath(line2)
+                sweepInput = component.features.sweepFeatures.createInput(profs, path2,
+                                                                        adsk.fusion.FeatureOperations.JoinFeatureOperation)
+                sweepInput.twistAngle = adsk.core.ValueInput.createByReal(self.t_for(self.width / 2))
+                if (base_feature):
+                    sweepInput.targetBaseFeature = base_feature
+                gearBody = sweepFeature = component.features.sweepFeatures.add(sweepInput).bodies.item(0)
+
+            # "Inverts" internal Gears
+            if (self.internal_outside_diameter):
+                cyl = cylinder = tbm.createCylinderOrCone(adsk.core.Point3D.create(0, 0, -self.width / 2),
+                                                        self.internal_outside_diameter / 2,
+                                                        adsk.core.Point3D.create(0, 0, self.width / 2),
+                                                        self.internal_outside_diameter / 2)
+                tbm.booleanOperation(cyl, tbm.copy(gearBody), 0)
+                # Deletes external gear
+                gearBody.deleteMe()
+
+                if (base_feature):
+                    gearBody = component.bRepBodies.add(cyl, base_feature)
+                else:
+                    gearBody = component.bRepBodies.add(cyl)
+
+            # Delete tooth sketch for performance
+            sketch.deleteMe()
+
+            # Draws pitch diameter
+            pitch_diameter_sketch = component.sketches.add(component.xYConstructionPlane)
+            pitch_diameter_sketch.name = "PD: {0:.3f}mm".format(self.pitch_diameter * 10)
+            pitch_diameter_circle = pitch_diameter_sketch.sketchCurves.sketchCircles.addByCenterRadius(
+                adsk.core.Point3D.create(0, 0, 0), self.pitch_diameter / 2)
+            pitch_diameter_circle.isConstruction = True
+            pitch_diameter_circle.isFixed = True
+
+            # Storres a copy of the newly generated gear    
+      
+            lastGear = tbm.copy(gearBody)
+        else:
+            if(base_feature):
+                component.bRepBodies.add(lastGear, base_feature)
+            else:
+                component.bRepBodies.add(lastGear)
 
         # Finishes BaseFeature if it exists
         if (base_feature):
             base_feature.finishEdit()
-
-        global lastGear 
-        lastGear = tbm.copy(base_feature.bodies[0])
 
         return occurrence
 
@@ -669,7 +681,10 @@ class RackGear:
         )
         return lines
 
-    def model_gear(self, parent_component):
+    def model_gear(self, parent_component, same_as_last=False):
+        # Storres a copy of the last gear generated to speed up regeneation of the same gear
+        global lastGear 
+
         # Create new component
         occurrence = parent_component.occurrences.addNewComponent(adsk.core.Matrix3D.create())
         component = occurrence.component
@@ -684,104 +699,117 @@ class RackGear:
         else:
             base_feature = None
 
-        teeth = math.ceil(
-            (self.length + 2 * math.tan(abs(self.helix_angle)) * self.width) / (self.normal_module * math.pi))
-        # The temporaryBRep manager is a tool for creating 3d geometry without the use of features
-        # The word temporary referrs to the geometry being created being virtual, but It can easily be converted to actual geometry
-        tbm = adsk.fusion.TemporaryBRepManager.get()
-        # Array to keep track of TempBRepBodies
-        tempBRepBodies = []
-        # Creates BRep wire object(s), representing edges in 3D space from an array of 3Dcurves
-        if (self.herringbone):
-            wireBody1, _ = tbm.createWireFromCurves(self.rackLines(
-                -self.length / 2 - (math.tan(abs(self.helix_angle)) + math.tan(self.helix_angle)) * self.width / 2,
-                -self.width / 2,
-                0,
-                self.normal_module, teeth, self.height, self.normal_pressure_angle, self.helix_angle,
-                self.backlash, self.addendum, self.dedendum
-            ))
-            wireBody2, _ = tbm.createWireFromCurves(self.rackLines(
-                -self.length / 2 - math.tan(abs(self.helix_angle)) * self.width / 2,
-                0,
-                0,
-                self.normal_module, teeth, self.height, self.normal_pressure_angle, self.helix_angle,
-                self.backlash, self.addendum,
-                self.dedendum
-            ))
-            wireBody3, _ = tbm.createWireFromCurves(self.rackLines(
-                -self.length / 2 - (math.tan(abs(self.helix_angle)) + math.tan(self.helix_angle)) * self.width / 2,
-                self.width / 2,
-                0,
-                self.normal_module, teeth, self.height, self.normal_pressure_angle, self.helix_angle,
-                self.backlash, self.addendum, self.dedendum
-            ))
-        else:
-            wireBody1, _ = tbm.createWireFromCurves(self.rackLines(
-                -self.length / 2 - (math.tan(abs(self.helix_angle)) + math.tan(self.helix_angle)) * self.width,
-                -self.width / 2,
-                0,
-                self.normal_module, teeth, self.height, self.normal_pressure_angle, self.helix_angle,
-                self.backlash, self.addendum, self.dedendum
-            ))
-            wireBody2, _ = tbm.createWireFromCurves(self.rackLines(
-                -self.length / 2 - math.tan(abs(self.helix_angle)) * self.width,
-                self.width / 2,
-                0,
-                self.normal_module, teeth, self.height, self.normal_pressure_angle, self.helix_angle,
-                self.backlash, self.addendum,
-                self.dedendum
-            ))
+        if(not (same_as_last and lastGear)):
 
-        # Creates the planar end caps.
-        tempBRepBodies.append(tbm.createFaceFromPlanarWires([wireBody1]))
-        if (self.herringbone):
-            tempBRepBodies.append(tbm.createFaceFromPlanarWires([wireBody3]))
-        else:
-            tempBRepBodies.append(tbm.createFaceFromPlanarWires([wireBody2]))
-        # Creates the ruled surface connectiong the two end caps
-        tempBRepBodies.append(tbm.createRuledSurface(wireBody1.wires.item(0), wireBody2.wires.item(0)))
-        if (self.herringbone):
-            tempBRepBodies.append(tbm.createRuledSurface(wireBody2.wires.item(0), wireBody3.wires.item(0)))
-        # Turns surfaces into real BRep so they can be boundary filled
-        tools = adsk.core.ObjectCollection.create()
-        for b in tempBRepBodies:
-            if (base_feature):
-                tools.add(component.bRepBodies.add(b, base_feature))
+            teeth = math.ceil(
+                (self.length + 2 * math.tan(abs(self.helix_angle)) * self.width) / (self.normal_module * math.pi))
+            # The temporaryBRep manager is a tool for creating 3d geometry without the use of features
+            # The word temporary referrs to the geometry being created being virtual, but It can easily be converted to actual geometry
+            tbm = adsk.fusion.TemporaryBRepManager.get()
+            # Array to keep track of TempBRepBodies
+            tempBRepBodies = []
+            # Creates BRep wire object(s), representing edges in 3D space from an array of 3Dcurves
+            if (self.herringbone):
+                wireBody1, _ = tbm.createWireFromCurves(self.rackLines(
+                    -self.length / 2 - (math.tan(abs(self.helix_angle)) + math.tan(self.helix_angle)) * self.width / 2,
+                    -self.width / 2,
+                    0,
+                    self.normal_module, teeth, self.height, self.normal_pressure_angle, self.helix_angle,
+                    self.backlash, self.addendum, self.dedendum
+                ))
+                wireBody2, _ = tbm.createWireFromCurves(self.rackLines(
+                    -self.length / 2 - math.tan(abs(self.helix_angle)) * self.width / 2,
+                    0,
+                    0,
+                    self.normal_module, teeth, self.height, self.normal_pressure_angle, self.helix_angle,
+                    self.backlash, self.addendum,
+                    self.dedendum
+                ))
+                wireBody3, _ = tbm.createWireFromCurves(self.rackLines(
+                    -self.length / 2 - (math.tan(abs(self.helix_angle)) + math.tan(self.helix_angle)) * self.width / 2,
+                    self.width / 2,
+                    0,
+                    self.normal_module, teeth, self.height, self.normal_pressure_angle, self.helix_angle,
+                    self.backlash, self.addendum, self.dedendum
+                ))
             else:
-                tools.add(component.bRepBodies.add(b))
-        # Boundary fills enclosed voulume
-        boundaryFillInput = component.features.boundaryFillFeatures.createInput(tools,
-                                                                                adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
-        if base_feature:
-            boundaryFillInput.targetBaseFeature = base_feature
-        boundaryFillInput.bRepCells.item(0).isSelected = True
-        body = component.features.boundaryFillFeatures.add(boundaryFillInput).bodies.item(0)
-        # Creates a box to cut off angled ends
-        obb = adsk.core.OrientedBoundingBox3D.create(adsk.core.Point3D.create(0, 0, 0),
-                                                     adsk.core.Vector3D.create(1, 0, 0),
-                                                     adsk.core.Vector3D.create(0, 1, 0),
-                                                     self.length, self.width * 2, (self.height + self.addendum) * 2)
-        box = tbm.createBox(obb)
-        tbm.booleanOperation(box, tbm.copy(body), 1)
-        if (base_feature):
-            component.bRepBodies.add(box, base_feature)
+                wireBody1, _ = tbm.createWireFromCurves(self.rackLines(
+                    -self.length / 2 - (math.tan(abs(self.helix_angle)) + math.tan(self.helix_angle)) * self.width,
+                    -self.width / 2,
+                    0,
+                    self.normal_module, teeth, self.height, self.normal_pressure_angle, self.helix_angle,
+                    self.backlash, self.addendum, self.dedendum
+                ))
+                wireBody2, _ = tbm.createWireFromCurves(self.rackLines(
+                    -self.length / 2 - math.tan(abs(self.helix_angle)) * self.width,
+                    self.width / 2,
+                    0,
+                    self.normal_module, teeth, self.height, self.normal_pressure_angle, self.helix_angle,
+                    self.backlash, self.addendum,
+                    self.dedendum
+                ))
+
+            # Creates the planar end caps.
+            tempBRepBodies.append(tbm.createFaceFromPlanarWires([wireBody1]))
+            if (self.herringbone):
+                tempBRepBodies.append(tbm.createFaceFromPlanarWires([wireBody3]))
+            else:
+                tempBRepBodies.append(tbm.createFaceFromPlanarWires([wireBody2]))
+            # Creates the ruled surface connectiong the two end caps
+            tempBRepBodies.append(tbm.createRuledSurface(wireBody1.wires.item(0), wireBody2.wires.item(0)))
+            if (self.herringbone):
+                tempBRepBodies.append(tbm.createRuledSurface(wireBody2.wires.item(0), wireBody3.wires.item(0)))
+            # Turns surfaces into real BRep so they can be boundary filled
+            tools = adsk.core.ObjectCollection.create()
+            for b in tempBRepBodies:
+                if (base_feature):
+                    tools.add(component.bRepBodies.add(b, base_feature))
+                else:
+                    tools.add(component.bRepBodies.add(b))
+            # Boundary fills enclosed voulume
+            boundaryFillInput = component.features.boundaryFillFeatures.createInput(tools,
+                                                                                    adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
+            if base_feature:
+                boundaryFillInput.targetBaseFeature = base_feature
+            boundaryFillInput.bRepCells.item(0).isSelected = True
+            body = component.features.boundaryFillFeatures.add(boundaryFillInput).bodies.item(0)
+            # Creates a box to cut off angled ends
+            obb = adsk.core.OrientedBoundingBox3D.create(adsk.core.Point3D.create(0, 0, 0),
+                                                        adsk.core.Vector3D.create(1, 0, 0),
+                                                        adsk.core.Vector3D.create(0, 1, 0),
+                                                        self.length, self.width * 2, (self.height + self.addendum) * 2)
+            box = tbm.createBox(obb)
+            tbm.booleanOperation(box, tbm.copy(body), 1)
+            if (base_feature):
+                gearBody = component.bRepBodies.add(box, base_feature)
+            else:
+                gearBody = component.bRepBodies.add(box)
+            body.deleteMe()
+            # Deletes tooling bodies
+            for b in tools:
+                b.deleteMe()
+            
+            # Adds "pitch diameter" line
+            pitch_diameter_sketch = component.sketches.add(component.xYConstructionPlane)
+            pitch_diameter_sketch.name = "Pitch Diameter Line"
+            pitch_diameter_line = pitch_diameter_sketch.sketchCurves.sketchLines.addByTwoPoints(
+                adsk.core.Point3D.create(-self.length / 2, 0, 0),
+                adsk.core.Point3D.create(self.length / 2, 0, 0)
+            )
+            pitch_diameter_line.isFixed = True
+            pitch_diameter_line.isConstruction = True
+
+            # Storres a copy of the newly generated gear            
+            lastGear = tbm.copy(gearBody)
         else:
-            component.bRepBodies.add(box)
-        body.deleteMe()
-        # Deletes tooling bodies
-        for b in tools:
-            b.deleteMe()
+            if(base_feature):
+                component.bRepBodies.add(lastGear, base_feature)
+            else:
+                component.bRepBodies.add(lastGear)
+
         if (base_feature):
             base_feature.finishEdit()
-        # Adds "pitch diameter" line
-        pitch_diameter_sketch = component.sketches.add(component.xYConstructionPlane)
-        pitch_diameter_sketch.name = "Pitch Diameter Line"
-        pitch_diameter_line = pitch_diameter_sketch.sketchCurves.sketchLines.addByTwoPoints(
-            adsk.core.Point3D.create(-self.length / 2, 0, 0),
-            adsk.core.Point3D.create(self.length / 2, 0, 0)
-        )
-        pitch_diameter_line.isFixed = True
-        pitch_diameter_line.isConstruction = True
+
         return occurrence
 
 
@@ -988,18 +1016,10 @@ class CommandExecutePreviewHandler(adsk.core.CommandEventHandler):
                 preserve_inputs(args.command.commandInputs, pers)
 
                 global lastInput
-                global lastGear
-                if(lastInput in ["APITabBar", "SIPlane", "SIOrigin", "DDDirection", "AVRotation", "DVOffset"] and lastGear):
-                    gear = adsk.core.Application.get().activeProduct.rootComponent.occurrences.addNewComponent(adsk.core.Matrix3D.create())
 
-                    base_feature = gear.component.features.baseFeatures.add()
-                    base_feature.startEdit()
-
-                    gear.component.bRepBodies.add(lastGear, base_feature)
-
-                    base_feature.finishEdit()
-                else:
-                    gear = generate_gear(args.command.commandInputs).model_gear(adsk.core.Application.get().activeProduct.rootComponent)
+                reuse_gear = lastInput  in ["APITabBar", "SIPlane", "SIOrigin", "DDDirection", "AVRotation", "DVOffset"]
+                
+                gear = generate_gear(args.command.commandInputs).model_gear(adsk.core.Application.get().activeProduct.rootComponent, reuse_gear)
                 
                 move_gear(gear, args.command.commandInputs)
                 
