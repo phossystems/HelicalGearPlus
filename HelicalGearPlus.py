@@ -950,8 +950,20 @@ class CommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             siOrigin.addSelectionFilter("ConstructionPoints")
             siOrigin.addSelectionFilter("SketchPoints")
             siOrigin.addSelectionFilter("Vertices")
+            #siOrigin.addSelectionFilter("ConstructionLines")
+            #siOrigin.addSelectionFilter("SketchLines")
+            #siOrigin.addSelectionFilter("LinearEdges")
             siOrigin.setSelectionLimits(0, 1)
             
+            siDirection = tabPosition.children.addSelectionInput("SIDirection", "Direction", "Select Rack Direction")
+            siDirection.addSelectionFilter("ConstructionPlanes")
+            siDirection.addSelectionFilter("Profiles")
+            siDirection.addSelectionFilter("Faces")
+            siDirection.addSelectionFilter("ConstructionLines")
+            siDirection.addSelectionFilter("SketchLines")
+            siDirection.addSelectionFilter("LinearEdges")
+            siDirection.setSelectionLimits(0, 1)
+
             siPlane = tabPosition.children.addSelectionInput("SIPlane", "Plane", "Select Gear Plane")
             siPlane.addSelectionFilter("ConstructionPlanes")
             siPlane.addSelectionFilter("Profiles")
@@ -969,12 +981,26 @@ class CommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             avRotation = tabPosition.children.addAngleValueCommandInput("AVRotation", "Rotation", adsk.core.ValueInput.createByReal(0))
             avRotation.isVisible = False
 
-            dvOffset = tabPosition.children.addDistanceValueCommandInput("DVOffset", "Offset",adsk.core.ValueInput.createByReal(0))
-            dvOffset.setManipulator(
+            DVOffsetX = tabPosition.children.addDistanceValueCommandInput("DVOffsetX", "Offset (X)",adsk.core.ValueInput.createByReal(0))
+            DVOffsetX.setManipulator(
+                adsk.core.Point3D.create(0,0,0),
+                adsk.core.Vector3D.create(1,0,0)
+            )
+            DVOffsetX.isVisible = False
+
+            DVOffsetY = tabPosition.children.addDistanceValueCommandInput("DVOffsetY", "Offset (Y)",adsk.core.ValueInput.createByReal(0))
+            DVOffsetY.setManipulator(
+                adsk.core.Point3D.create(0,0,0),
+                adsk.core.Vector3D.create(0,1,0)
+            )
+            DVOffsetY.isVisible = False
+
+            DVOffsetZ = tabPosition.children.addDistanceValueCommandInput("DVOffsetZ", "Offset (Z)",adsk.core.ValueInput.createByReal(0))
+            DVOffsetZ.setManipulator(
                 adsk.core.Point3D.create(0,0,0),
                 adsk.core.Vector3D.create(0,0,1)
             )
-            dvOffset.isVisible = False
+            DVOffsetZ.isVisible = False
 
 
             # Properties
@@ -1017,7 +1043,7 @@ class CommandExecutePreviewHandler(adsk.core.CommandEventHandler):
 
                 global lastInput
 
-                reuse_gear = lastInput  in ["APITabBar", "SIPlane", "SIOrigin", "DDDirection", "AVRotation", "DVOffset"]
+                reuse_gear = lastInput  in ["APITabBar", "SIPlane", "SIOrigin", "DDDirection", "AVRotation", "DVOffsetZ"]
                 
                 gear = generate_gear(args.command.commandInputs).model_gear(adsk.core.Application.get().activeProduct.rootComponent, reuse_gear)
                 
@@ -1086,12 +1112,20 @@ class CommandInputChangedHandler(adsk.core.InputChangedEventHandler):
                 if (args.inputs.itemById("TabPosition") and args.inputs.itemById("TabPosition").isActive):
                     args.input.parentCommand.commandInputs.itemById("SIOrigin").isVisible = True
                     args.input.parentCommand.commandInputs.itemById("SIPlane").isVisible = True
-                    args.input.parentCommand.commandInputs.itemById("DVOffset").isVisible = True
-                    args.input.parentCommand.commandInputs.itemById("AVRotation").isVisible = True
+                    args.input.parentCommand.commandInputs.itemById("DVOffsetZ").isVisible = True
+                    if(args.input.parentCommand.commandInputs.itemById("DDType").selectedItem.name == "Rack Gear"):
+                        args.input.parentCommand.commandInputs.itemById("SIDirection").isVisible = True
+                        args.input.parentCommand.commandInputs.itemById("DVOffsetX").isVisible = True
+                        args.input.parentCommand.commandInputs.itemById("DVOffsetY").isVisible = True
+                    else:
+                        args.input.parentCommand.commandInputs.itemById("AVRotation").isVisible = True
                 else:
                     args.input.parentCommand.commandInputs.itemById("SIOrigin").isVisible = False
+                    args.input.parentCommand.commandInputs.itemById("SIDirection").isVisible = False
                     args.input.parentCommand.commandInputs.itemById("SIPlane").isVisible = False
-                    args.input.parentCommand.commandInputs.itemById("DVOffset").isVisible = False
+                    args.input.parentCommand.commandInputs.itemById("DVOffsetX").isVisible = False
+                    args.input.parentCommand.commandInputs.itemById("DVOffsetY").isVisible = False
+                    args.input.parentCommand.commandInputs.itemById("DVOffsetZ").isVisible = False
                     args.input.parentCommand.commandInputs.itemById("AVRotation").isVisible = False
             # Update manipulators
             #if(args.input.id == "SIOrigin" or args.input.id == "SIPlane"):
@@ -1253,7 +1287,7 @@ def move_gear(gear, commandInputs):
             project_point_on_plane(pointPrim, planePrim),
             planePrim.normal,
             commandInputs.itemById("AVRotation").value,
-            commandInputs.itemById("DVOffset").value + side_offset
+            commandInputs.itemById("DVOffsetZ").value + side_offset
         )
     else:
         # No valid selection combination, no move just side & rotation
@@ -1261,7 +1295,7 @@ def move_gear(gear, commandInputs):
             adsk.core.Point3D.create(0,0,0),
             adsk.core.Vector3D.create(0,0,1),
             commandInputs.itemById("AVRotation").value,
-            commandInputs.itemById("DVOffset").value + side_offset
+            commandInputs.itemById("DVOffsetZ").value + side_offset
         )
 
 
