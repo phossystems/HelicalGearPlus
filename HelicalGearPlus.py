@@ -973,6 +973,8 @@ class CommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             #siPlane.addSelectionFilter("LinearEdges")
             siPlane.setSelectionLimits(0, 1)
 
+            bvFlipped = tabPosition.children.addBoolValueInput("BVFlipped", "Flip", True)
+
             ddDirection = tabPosition.children.addDropDownCommandInput("DDDirection", "Direction", 0)
             ddDirection.listItems.add("Front", True, "resources/front")
             ddDirection.listItems.add("Center", False, "resources/center")
@@ -1043,7 +1045,7 @@ class CommandExecutePreviewHandler(adsk.core.CommandEventHandler):
 
                 global lastInput
 
-                reuse_gear = lastInput  in ["APITabBar", "SIPlane", "SIOrigin", "DDDirection", "AVRotation", "DVOffsetZ"]
+                reuse_gear = lastInput  in ["APITabBar", "SIPlane", "SIOrigin", "SIDirection", "DDDirection", "AVRotation","BVFlipped", "DVOffsetX", "DVOffsetY", "DVOffsetZ"]
                 
                 gear = generate_gear(args.command.commandInputs).model_gear(adsk.core.Application.get().activeProduct.rootComponent, reuse_gear)
                 
@@ -1254,9 +1256,15 @@ def generate_gear(commandInputs):
 
 
 def move_gear(gear, commandInputs):
+    if(commandInputs.itemById("DDType").selectedItem.name != "Rack Gear"):
+        move_regular_gear(gear, commandInputs)
+    else:
+        move_rack_gear(gear, commandInputs)
+
+
+def move_regular_gear(gear, commandInputs):
 
     side_offset = (0.5 - (commandInputs.itemById("DDDirection").selectedItem.index * 0.5)) * commandInputs.itemById("VIWidth").value
-
 
     if(commandInputs.itemById("SIOrigin").selectionCount):
         point = commandInputs.itemById("SIOrigin").selection(0).entity
@@ -1283,7 +1291,7 @@ def move_gear(gear, commandInputs):
                 adsk.core.Vector3D.create(0,1,0)
             )
             
-        gear.transform = move_matrix(
+        gear.transform = regular_move_matrix(
             project_point_on_plane(pointPrim, planePrim),
             planePrim.normal,
             commandInputs.itemById("AVRotation").value,
@@ -1291,7 +1299,7 @@ def move_gear(gear, commandInputs):
         )
     else:
         # No valid selection combination, no move just side & rotation
-        gear.transform = move_matrix(
+        gear.transform = regular_move_matrix(
             adsk.core.Point3D.create(0,0,0),
             adsk.core.Vector3D.create(0,0,1),
             commandInputs.itemById("AVRotation").value,
@@ -1299,7 +1307,84 @@ def move_gear(gear, commandInputs):
         )
 
 
-def move_matrix(position, direction, rotation, offset):
+def move_rack_gear(gear, commandInputs):
+    side_offset = (0.5 - (commandInputs.itemById("DDDirection").selectedItem.index * 0.5)) * commandInputs.itemById("VIWidth").value
+
+    if(commandInputs.itemById("SIDirection").selectionCount):
+        # Line selected
+        line = commandInputs.itemById("SIDirection").selection(0).entity
+        linePrim = get_primitive_from_selection(line)
+
+        if(commandInputs.itemById("SIPlane").selectionCount):
+            # Plane selected
+            plane = commandInputs.itemById("SIPlane").selection(0).entity
+            planePrim = get_primitive_from_selection(plane)
+        elif(line.objectType == "adsk::fusion::SketchLine"):
+            # No Plane selected, using sketch plane
+            planePrim = adsk.core.Plane.createUsingDirections(
+                line.parentSketch.origin,
+                line.parentSketch.xDirection,
+                line.parentSketch.yDirection
+            )
+        else:
+            # TODO: DO no move
+            # Do no move
+            planePrim = adsk.core.Plane.create(
+                adsk.core.Point3D.create(0,0,0),
+                adsk.core.Vector3D.create(0,0,1)
+            )
+
+        if(commandInputs.itemById("SIOrigin").selectionCount):
+            # Point selected
+            point = commandInputs.itemById("SIOrigin").selection(0).entity
+            pointPrim = get_primitive_from_selection(point)
+
+        elif(line.objectType == "adsk::fusion::SketchLine"):
+            a = line.worldGeometry.startPoint.copy()
+            b = line.worldGeometry.endPoint
+
+            v = a.vectorTo(b)
+            v.scaleBy(0.5)
+
+            a.translateBy(v)
+
+            pointPrim = a
+        else:
+            # TODO: DO no move
+            # Do no move
+            pointPrim = adsk.core.Point3D.create(0,0,0)
+        
+
+        #print(pointPrim)
+        #print(linePrim)
+        #print(planePrim)
+
+    else:
+         # No valid selection, no move, just offsets
+        linePrim = adsk.core.InfiniteLine3D.create(
+            adsk.core.Point3D.create(0,0,0),
+            adsk.core.Vector3D.create(1,0,0)
+        )
+        planePrim = adsk.core.Plane.create(
+            adsk.core.Point3D.create(0,0,0),
+            adsk.core.Vector3D.create(0,0,1)
+        )
+        pointPrim = adsk.core.Point3D.create(0,0,0)
+
+   
+    gear.transform = rack_move_matrix(
+        project_point_on_line(pointPrim, project_line_on_plane(linePrim, planePrim)),
+        project_vector_on_plane(linePrim.direction, planePrim),
+        planePrim.normal,
+        commandInputs.itemById("BVFlipped").value,
+        commandInputs.itemById("DVOffsetX").value,
+        commandInputs.itemById("DVOffsetY").value,
+        commandInputs.itemById("DVOffsetZ").value + side_offset
+    )
+    
+
+
+def regular_move_matrix(position, direction, rotation, offset):
     mat = adsk.core.Matrix3D.create()
 
     p = adsk.core.Plane.create(position, direction)
@@ -1313,6 +1398,53 @@ def move_matrix(position, direction, rotation, offset):
         p.uDirection,
         p.vDirection,
         direction
+    )
+
+    return mat
+
+
+def rack_move_matrix(position, x, z, flip, offset_x, offset_y, offset_z):
+
+    x.normalize()
+    z.normalize()
+
+
+    print()
+    print("Pos:")
+    print(position.asArray())
+    print("X:")
+    print(x.asArray())
+    print("Y:")
+    print(z.crossProduct(x).asArray())
+    print("Z:")
+    print(z.asArray())
+
+    p = adsk.core.Plane.createUsingDirections(adsk.core.Point3D.create(0,0,0),x,z)
+
+    print("p:")
+    print(p.normal.asArray())
+    print("x dot z")
+    print(x.dotProduct(z))
+
+    mat = adsk.core.Matrix3D.create()
+
+    #Flip Z so results line up with regular gears
+    z.scaleBy(-1)
+
+    if(flip):
+        x.scaleBy(-1)
+        offset_x *= -1
+
+    # Z & Y flipped due to racks beining generated out of plane
+    mat.setToAlignCoordinateSystems(
+        adsk.core.Point3D.create(-offset_x, offset_z, -offset_y),
+        adsk.core.Vector3D.create(1, 0, 0),
+        adsk.core.Vector3D.create(0, 0, -1),
+        adsk.core.Vector3D.create(0, 1, 0),
+        position,
+        x,
+        p.normal,
+        z
     )
 
     return mat
@@ -1349,13 +1481,13 @@ def get_primitive_from_selection(selection):
     if selection.objectType == "adsk::fusion::BRepEdge":
         _, tangent = selection.evaluator.getTangent(0)
         return adsk.core.InfiniteLine3D.create(
-            selection.pointOnEdge
+            selection.pointOnEdge,
             tangent
         )
     
     # Sketch Line
     if selection.objectType == "adsk::fusion::SketchLine":
-        return selection.worldGeometry
+        return selection.worldGeometry.asInfiniteLine()
     
     # Construction Point
     if selection.objectType == "adsk::fusion::ConstructionPoint":
@@ -1384,7 +1516,41 @@ def project_point_on_plane(point, plane):
     pt_on_pln.translateBy(normal)
 
     return pt_on_pln
+
+
+def project_vector_on_plane(vector, plane):
+
+    normal = plane.normal.copy()
+    normal.normalize()
+    normal.scaleBy(normal.dotProduct(vector))
+
+    v_on_pln = vector.copy()
+    v_on_pln.subtract(normal)
     
+    return v_on_pln
+
+
+def project_line_on_plane(line, plane):
+    return adsk.core.InfiniteLine3D.create(
+        project_point_on_plane(line.origin, plane),
+        project_vector_on_plane(line.direction, plane)
+    )
+
+
+def project_point_on_line(point, line):
+
+    tangent = line.direction.copy()
+    tangent.normalize()
+
+    d = line.origin.vectorTo(point).dotProduct(tangent)
+    tangent.scaleBy(d)
+
+    pt_on_ln = line.origin.copy()
+    pt_on_ln.translateBy(tangent)
+
+    return pt_on_ln
+
+
 
 def run(context):
     try:
