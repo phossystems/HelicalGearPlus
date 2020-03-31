@@ -1404,27 +1404,8 @@ def regular_move_matrix(position, direction, rotation, offset):
 
 
 def rack_move_matrix(position, x, z, flip, offset_x, offset_y, offset_z):
-
     x.normalize()
     z.normalize()
-
-
-    print()
-    print("Pos:")
-    print(position.asArray())
-    print("X:")
-    print(x.asArray())
-    print("Y:")
-    print(z.crossProduct(x).asArray())
-    print("Z:")
-    print(z.asArray())
-
-    p = adsk.core.Plane.createUsingDirections(adsk.core.Point3D.create(0,0,0),x,z)
-
-    print("p:")
-    print(p.normal.asArray())
-    print("x dot z")
-    print(x.dotProduct(z))
 
     mat = adsk.core.Matrix3D.create()
 
@@ -1434,6 +1415,13 @@ def rack_move_matrix(position, x, z, flip, offset_x, offset_y, offset_z):
     if(flip):
         x.scaleBy(-1)
         offset_x *= -1
+
+    p = adsk.core.Plane.createUsingDirections(adsk.core.Point3D.create(0,0,0),z,x)
+
+    print("x: ")
+    print(x.asArray())
+    print("z: ")
+    print(z.asArray())
 
     # Z & Y flipped due to racks beining generated out of plane
     mat.setToAlignCoordinateSystems(
