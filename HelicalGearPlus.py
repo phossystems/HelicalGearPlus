@@ -974,6 +974,7 @@ class CommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             siPlane.setSelectionLimits(0, 1)
 
             bvFlipped = tabPosition.children.addBoolValueInput("BVFlipped", "Flip", True)
+            bvFlipped.isVisible = False
 
             ddDirection = tabPosition.children.addDropDownCommandInput("DDDirection", "Direction", 0)
             ddDirection.listItems.add("Front", True, "resources/front")
@@ -983,26 +984,26 @@ class CommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             avRotation = tabPosition.children.addAngleValueCommandInput("AVRotation", "Rotation", adsk.core.ValueInput.createByReal(0))
             avRotation.isVisible = False
 
-            DVOffsetX = tabPosition.children.addDistanceValueCommandInput("DVOffsetX", "Offset (X)",adsk.core.ValueInput.createByReal(0))
-            DVOffsetX.setManipulator(
+            dvOffsetX = tabPosition.children.addDistanceValueCommandInput("DVOffsetX", "Offset (X)",adsk.core.ValueInput.createByReal(0))
+            dvOffsetX.setManipulator(
                 adsk.core.Point3D.create(0,0,0),
                 adsk.core.Vector3D.create(1,0,0)
             )
-            DVOffsetX.isVisible = False
+            dvOffsetX.isVisible = False
 
-            DVOffsetY = tabPosition.children.addDistanceValueCommandInput("DVOffsetY", "Offset (Y)",adsk.core.ValueInput.createByReal(0))
-            DVOffsetY.setManipulator(
+            dvOffsetY = tabPosition.children.addDistanceValueCommandInput("DVOffsetY", "Offset (Y)",adsk.core.ValueInput.createByReal(0))
+            dvOffsetY.setManipulator(
                 adsk.core.Point3D.create(0,0,0),
                 adsk.core.Vector3D.create(0,1,0)
             )
-            DVOffsetY.isVisible = False
+            dvOffsetY.isVisible = False
 
-            DVOffsetZ = tabPosition.children.addDistanceValueCommandInput("DVOffsetZ", "Offset (Z)",adsk.core.ValueInput.createByReal(0))
-            DVOffsetZ.setManipulator(
+            dvOffsetZ = tabPosition.children.addDistanceValueCommandInput("DVOffsetZ", "Offset (Z)",adsk.core.ValueInput.createByReal(0))
+            dvOffsetZ.setManipulator(
                 adsk.core.Point3D.create(0,0,0),
                 adsk.core.Vector3D.create(0,0,1)
             )
-            DVOffsetZ.isVisible = False
+            dvOffsetZ.isVisible = False
 
 
             # Properties
@@ -1119,9 +1120,11 @@ class CommandInputChangedHandler(adsk.core.InputChangedEventHandler):
                         args.input.parentCommand.commandInputs.itemById("SIDirection").isVisible = True
                         args.input.parentCommand.commandInputs.itemById("DVOffsetX").isVisible = True
                         args.input.parentCommand.commandInputs.itemById("DVOffsetY").isVisible = True
+                        args.input.parentCommand.commandInputs.itemById("BVFlipped").isVisible = True
                     else:
                         args.input.parentCommand.commandInputs.itemById("AVRotation").isVisible = True
                 else:
+
                     args.input.parentCommand.commandInputs.itemById("SIOrigin").isVisible = False
                     args.input.parentCommand.commandInputs.itemById("SIDirection").isVisible = False
                     args.input.parentCommand.commandInputs.itemById("SIPlane").isVisible = False
@@ -1129,6 +1132,7 @@ class CommandInputChangedHandler(adsk.core.InputChangedEventHandler):
                     args.input.parentCommand.commandInputs.itemById("DVOffsetY").isVisible = False
                     args.input.parentCommand.commandInputs.itemById("DVOffsetZ").isVisible = False
                     args.input.parentCommand.commandInputs.itemById("AVRotation").isVisible = False
+                    args.input.parentCommand.commandInputs.itemById("BVFlipped").isVisible = False
             # Update manipulators
             #if(args.input.id == "SIOrigin" or args.input.id == "SIPlane"):
                 
@@ -1417,11 +1421,6 @@ def rack_move_matrix(position, x, z, flip, offset_x, offset_y, offset_z):
         offset_x *= -1
 
     p = adsk.core.Plane.createUsingDirections(adsk.core.Point3D.create(0,0,0),z,x)
-
-    print("x: ")
-    print(x.asArray())
-    print("z: ")
-    print(z.asArray())
 
     # Z & Y flipped due to racks beining generated out of plane
     mat.setToAlignCoordinateSystems(
