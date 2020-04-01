@@ -946,32 +946,24 @@ class CommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             tbWarning2 = tabAdvanced.children.addTextBoxCommandInput("TBWarning2", "", '', 2, True)
 
             # Position
-            siOrigin = tabPosition.children.addSelectionInput("SIOrigin", "Center", "Select Gear Center")
-            siOrigin.addSelectionFilter("ConstructionPoints")
-            siOrigin.addSelectionFilter("SketchPoints")
-            siOrigin.addSelectionFilter("Vertices")
-            #siOrigin.addSelectionFilter("ConstructionLines")
-            #siOrigin.addSelectionFilter("SketchLines")
-            #siOrigin.addSelectionFilter("LinearEdges")
-            siOrigin.setSelectionLimits(0, 1)
-            
-            siDirection = tabPosition.children.addSelectionInput("SIDirection", "Direction", "Select Rack Direction")
-            siDirection.addSelectionFilter("ConstructionPlanes")
-            siDirection.addSelectionFilter("Profiles")
-            siDirection.addSelectionFilter("Faces")
-            siDirection.addSelectionFilter("ConstructionLines")
-            siDirection.addSelectionFilter("SketchLines")
-            siDirection.addSelectionFilter("LinearEdges")
-            siDirection.setSelectionLimits(0, 1)
-
             siPlane = tabPosition.children.addSelectionInput("SIPlane", "Plane", "Select Gear Plane")
             siPlane.addSelectionFilter("ConstructionPlanes")
             siPlane.addSelectionFilter("Profiles")
             siPlane.addSelectionFilter("Faces")
-            #siPlane.addSelectionFilter("ConstructionLines")
-            #siPlane.addSelectionFilter("SketchLines")
-            #siPlane.addSelectionFilter("LinearEdges")
             siPlane.setSelectionLimits(0, 1)
+
+            siDirection = tabPosition.children.addSelectionInput("SIDirection", "Direction", "Select Rack Direction")
+            siDirection.addSelectionFilter("ConstructionLines")
+            siDirection.addSelectionFilter("SketchLines")
+            siDirection.addSelectionFilter("LinearEdges")
+            siDirection.setSelectionLimits(0, 1)
+            siDirection.isVisible = False
+
+            siOrigin = tabPosition.children.addSelectionInput("SIOrigin", "Center", "Select Gear Center")
+            siOrigin.addSelectionFilter("ConstructionPoints")
+            siOrigin.addSelectionFilter("SketchPoints")
+            siOrigin.addSelectionFilter("Vertices")
+            siOrigin.setSelectionLimits(0, 1)
 
             bvFlipped = tabPosition.children.addBoolValueInput("BVFlipped", "Flip", True)
             bvFlipped.isVisible = False
@@ -1134,7 +1126,75 @@ class CommandInputChangedHandler(adsk.core.InputChangedEventHandler):
                     args.input.parentCommand.commandInputs.itemById("AVRotation").isVisible = False
                     args.input.parentCommand.commandInputs.itemById("BVFlipped").isVisible = False
             # Update manipulators
-            #if(args.input.id == "SIOrigin" or args.input.id == "SIPlane"):
+            if(args.input.id in ["SIOrigin", "SIDirection", "SIPlane", "AVRotation", "DVOffsetX", "DVOffsetY", "DVOffsetZ", "BVFlipped", "DDDirection"]):
+                if(args.input.parentCommand.commandInputs.itemById("DDType").selectedItem.name != "Rack Gear"):
+                    mat = regular_move_matrix(args.input.parentCommand.commandInputs)
+
+                    # Creates a directin vector aligned to relative Z+
+                    d = adsk.core.Vector3D.create(0,0,1)
+                    d.transformBy(mat)
+
+                    p = mat.translation
+
+                    # Scales vector by Offset to remove offset from manipulator position
+                    d0 = d.copy()
+                    d0.normalize()
+                    d0.scaleBy(args.input.parentCommand.commandInputs.itemById("DVOffsetZ").value)
+                    p0 = p.copy()
+                    p0.subtract(d0)
+
+                    pln = adsk.core.Plane.create(
+                        adsk.core.Point3D.create(0,0,0),
+                        d
+                    )
+                    
+                    args.input.parentCommand.commandInputs.itemById("DVOffsetZ").setManipulator(p0.asPoint(),d)
+                    args.input.parentCommand.commandInputs.itemById("AVRotation").setManipulator(p.asPoint(), pln.uDirection, pln.vDirection)
+
+                else:
+                    mat = rack_move_matrix(args.input.parentCommand.commandInputs)
+
+                    # Creates a directin vector aligned to relative xyz
+                    x = adsk.core.Vector3D.create(1,0,0)
+                    x.transformBy(mat)
+                    y = adsk.core.Vector3D.create(0,0,1)
+                    y.transformBy(mat)
+                    z = adsk.core.Vector3D.create(0,-1,0)
+                    z.transformBy(mat)
+
+                    p = mat.translation
+
+                    # Flippes x when rack is flipped
+                    xf = x.copy()
+                    if(args.input.parentCommand.commandInputs.itemById("BVFlipped").value):
+                        xf.scaleBy(-1)
+
+                    # Creates scaled direction vectors for position compensation
+                    x0 = xf.copy()
+                    x0.normalize()
+                    x0.scaleBy(args.input.parentCommand.commandInputs.itemById("DVOffsetX").value)
+
+                    y0 = y.copy()
+                    y0.normalize()
+                    y0.scaleBy(args.input.parentCommand.commandInputs.itemById("DVOffsetY").value)
+
+                    z0 = z.copy()
+                    z0.normalize()
+                    z0.scaleBy(args.input.parentCommand.commandInputs.itemById("DVOffsetZ").value)
+
+                    # Compensates position
+                    px = p.copy()
+                    px.subtract(x0)
+
+                    py = p.copy()
+                    py.subtract(y0)
+
+                    pz = p.copy()
+                    pz.subtract(z0)
+
+                    args.input.parentCommand.commandInputs.itemById("DVOffsetX").setManipulator(px.asPoint(),xf)
+                    args.input.parentCommand.commandInputs.itemById("DVOffsetY").setManipulator(py.asPoint(),y)
+                    args.input.parentCommand.commandInputs.itemById("DVOffsetZ").setManipulator(pz.asPoint(),z)
                 
 
         except:
@@ -1261,12 +1321,12 @@ def generate_gear(commandInputs):
 
 def move_gear(gear, commandInputs):
     if(commandInputs.itemById("DDType").selectedItem.name != "Rack Gear"):
-        move_regular_gear(gear, commandInputs)
+        gear.transform = regular_move_matrix(commandInputs)
     else:
-        move_rack_gear(gear, commandInputs)
+        gear.transform = rack_move_matrix(commandInputs)
 
 
-def move_regular_gear(gear, commandInputs):
+def regular_move_matrix(commandInputs):
 
     side_offset = (0.5 - (commandInputs.itemById("DDDirection").selectedItem.index * 0.5)) * commandInputs.itemById("VIWidth").value
 
@@ -1295,7 +1355,7 @@ def move_regular_gear(gear, commandInputs):
                 adsk.core.Vector3D.create(0,1,0)
             )
             
-        gear.transform = regular_move_matrix(
+        return move_matrix_pdro(
             project_point_on_plane(pointPrim, planePrim),
             planePrim.normal,
             commandInputs.itemById("AVRotation").value,
@@ -1303,7 +1363,7 @@ def move_regular_gear(gear, commandInputs):
         )
     else:
         # No valid selection combination, no move just side & rotation
-        gear.transform = regular_move_matrix(
+        return move_matrix_pdro(
             adsk.core.Point3D.create(0,0,0),
             adsk.core.Vector3D.create(0,0,1),
             commandInputs.itemById("AVRotation").value,
@@ -1311,7 +1371,7 @@ def move_regular_gear(gear, commandInputs):
         )
 
 
-def move_rack_gear(gear, commandInputs):
+def rack_move_matrix(commandInputs):
     side_offset = (0.5 - (commandInputs.itemById("DDDirection").selectedItem.index * 0.5)) * commandInputs.itemById("VIWidth").value
 
     if(commandInputs.itemById("SIDirection").selectionCount):
@@ -1376,7 +1436,7 @@ def move_rack_gear(gear, commandInputs):
         pointPrim = adsk.core.Point3D.create(0,0,0)
 
    
-    gear.transform = rack_move_matrix(
+    return move_matrix_pxzfxyz(
         project_point_on_line(pointPrim, project_line_on_plane(linePrim, planePrim)),
         project_vector_on_plane(linePrim.direction, planePrim),
         planePrim.normal,
@@ -1387,8 +1447,7 @@ def move_rack_gear(gear, commandInputs):
     )
     
 
-
-def regular_move_matrix(position, direction, rotation, offset):
+def move_matrix_pdro(position, direction, rotation, offset):
     mat = adsk.core.Matrix3D.create()
 
     p = adsk.core.Plane.create(position, direction)
@@ -1407,7 +1466,7 @@ def regular_move_matrix(position, direction, rotation, offset):
     return mat
 
 
-def rack_move_matrix(position, x, z, flip, offset_x, offset_y, offset_z):
+def move_matrix_pxzfxyz(position, x, z, flip, offset_x, offset_y, offset_z):
     x.normalize()
     z.normalize()
 
