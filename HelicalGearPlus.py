@@ -857,7 +857,7 @@ class CommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             tabSettings = inputs.addTabCommandInput("TabSettings", "Settings")
             tabAdvanced = inputs.addTabCommandInput("TabAdvanced", "Advanced")
             tabPosition = inputs.addTabCommandInput("TabPosition", "Position")
-            tabProperties = inputs.addTabCommandInput("TabProperties", "Properties")
+            tabProperties = inputs.addTabCommandInput("TabProperties", "Info")
 
             # Setting command Inputs
             ddType = tabSettings.children.addDropDownCommandInput("DDType", "Type", 0)
@@ -1126,7 +1126,7 @@ class CommandInputChangedHandler(adsk.core.InputChangedEventHandler):
                     args.input.parentCommand.commandInputs.itemById("AVRotation").isVisible = False
                     args.input.parentCommand.commandInputs.itemById("BVFlipped").isVisible = False
             # Update manipulators
-            if(args.input.id in ["SIOrigin", "SIDirection", "SIPlane", "AVRotation", "DVOffsetX", "DVOffsetY", "DVOffsetZ", "BVFlipped", "DDDirection"]):
+            if(args.input.id in ["SIOrigin", "SIDirection", "SIPlane", "AVRotation", "DVOffsetX", "DVOffsetY", "DVOffsetZ", "BVFlipped", "DDDirection", "DDType"]):
                 if(args.input.parentCommand.commandInputs.itemById("DDType").selectedItem.name != "Rack Gear"):
                     mat = regular_move_matrix(args.input.parentCommand.commandInputs)
 
@@ -1324,7 +1324,8 @@ def move_gear(gear, commandInputs):
         gear.transform = regular_move_matrix(commandInputs)
     else:
         gear.transform = rack_move_matrix(commandInputs)
-
+    adsk.core.Application.get().activeDocument.design.snapshots.add()
+    
 
 def regular_move_matrix(commandInputs):
 
@@ -1595,7 +1596,6 @@ def project_point_on_line(point, line):
     pt_on_ln.translateBy(tangent)
 
     return pt_on_ln
-
 
 
 def run(context):
