@@ -951,30 +951,41 @@ class CommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             siPlane.addSelectionFilter("Profiles")
             siPlane.addSelectionFilter("Faces")
             siPlane.setSelectionLimits(0, 1)
+            siPlane.tooltip = "Gear Plane"
+            siPlane.tooltipDescription = "Select the plane the gear will be placed on.\n\nValid selections are:\n    Sketches\n    Sketch Profiles\n    Construction Planes\n    BRep Faces"
 
-            siDirection = tabPosition.children.addSelectionInput("SIDirection", "Direction", "Select Rack Direction")
+            siDirection = tabPosition.children.addSelectionInput("SIDirection", "Line", "Select Rack Direction")
             siDirection.addSelectionFilter("ConstructionLines")
             siDirection.addSelectionFilter("SketchLines")
             siDirection.addSelectionFilter("LinearEdges")
             siDirection.setSelectionLimits(0, 1)
             siDirection.isVisible = False
+            siDirection.tooltip = "Rack Path"
+            siDirection.tooltipDescription = "Select the line the rack is placed on.\nWill be projected onto the plane.\n\nValid selections are:\n    Sketch Lines\n    Construction Lines\n    BRep Edges"
 
             siOrigin = tabPosition.children.addSelectionInput("SIOrigin", "Center", "Select Gear Center")
             siOrigin.addSelectionFilter("ConstructionPoints")
             siOrigin.addSelectionFilter("SketchPoints")
             siOrigin.addSelectionFilter("Vertices")
             siOrigin.setSelectionLimits(0, 1)
+            siOrigin.tooltip = "Gear Center Point"
+            siOrigin.tooltipDescription = "Select the center point of the gear.\nWill be projected onto the plane.\n\nValid selections:\n    Sketch Points\n    Construction Points\n    BRep Vertices\n"
 
             bvFlipped = tabPosition.children.addBoolValueInput("BVFlipped", "Flip", True)
             bvFlipped.isVisible = False
+            bvFlipped.tooltip = "Flips rack direction"
 
             ddDirection = tabPosition.children.addDropDownCommandInput("DDDirection", "Direction", 0)
             ddDirection.listItems.add("Front", True, "resources/front")
             ddDirection.listItems.add("Center", False, "resources/center")
             ddDirection.listItems.add("Back", False, "resources/back")
+            ddDirection.tooltip = "Direction"
+            ddDirection.tooltipDescription = "Choose what side of the plane the gear is placed on."
 
             avRotation = tabPosition.children.addAngleValueCommandInput("AVRotation", "Rotation", adsk.core.ValueInput.createByReal(0))
             avRotation.isVisible = False
+            avRotation.tooltip = "Rotation"
+            avRotation.tooltipDescription = "Rotates the gear around its axis."
 
             dvOffsetX = tabPosition.children.addDistanceValueCommandInput("DVOffsetX", "Offset (X)",adsk.core.ValueInput.createByReal(0))
             dvOffsetX.setManipulator(
@@ -982,6 +993,7 @@ class CommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
                 adsk.core.Vector3D.create(1,0,0)
             )
             dvOffsetX.isVisible = False
+            dvOffsetX.tooltip = "Offset along path."
 
             dvOffsetY = tabPosition.children.addDistanceValueCommandInput("DVOffsetY", "Offset (Y)",adsk.core.ValueInput.createByReal(0))
             dvOffsetY.setManipulator(
@@ -996,6 +1008,7 @@ class CommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
                 adsk.core.Vector3D.create(0,0,1)
             )
             dvOffsetZ.isVisible = False
+            dvOffsetZ.tooltip = "Offset from plane"
 
 
             # Properties
