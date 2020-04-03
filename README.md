@@ -2,7 +2,9 @@
 
 Generates straight, helical and herringbone external, internal and rack gears
 as well as non-enveloping worms and worm gears.
-Parts based on Ross Korsky's Helical gear generator
+Parts based on Ross Korsky's Helical gear generator.    
+
+🎉 **1K+ Users in the first Month on the App Store!** 🎉
 
 <br>
 
@@ -10,7 +12,7 @@ Parts based on Ross Korsky's Helical gear generator
 
 <br>
 
-![UI](https://user-images.githubusercontent.com/30301307/74058710-e31f3380-49e6-11ea-8584-446c37cc4edc.jpg)
+![UI2](https://user-images.githubusercontent.com/30301307/78392013-cb7bba00-75e7-11ea-8c0d-de8ae442ef6e.jpg)
 
 <br>
 
@@ -25,3 +27,20 @@ Parts based on Ross Korsky's Helical gear generator
 * Navigate to the extracted Project forlder and hit open
 * The Add-in should now appear in the "My Add-Ins" list. Select it in the list. If desired check the "Run ond Startup" checkbox and hit run.
 * The Command will appear as CREATE > Helical Gear
+
+# Changelog
+
+## 1.0.6 Positioning Update
+- Added positioning options 
+
+## 1.0.5 Gear Type Update
+- Interface redesign
+- Rack Gear support
+- Internal Gear support
+- Published on the App store
+- Code readabillity improvements
+
+## 1.0.4 Performance Update
+- Major Performance improvements
+- Far less timeline objects
+- Published on Github
