@@ -511,14 +511,6 @@ class HelicalGear:
             # Delete tooth sketch for performance
             sketch.deleteMe()
 
-            # Draws pitch diameter
-            pitchDiameterSketch = component.sketches.add(component.xYConstructionPlane)
-            pitchDiameterSketch.name = "PD: {0:.3f}mm".format(self.pitchDiameter * 10)
-            pitchDiameterCircle = pitchDiameterSketch.sketchCurves.sketchCircles.addByCenterRadius(
-                adsk.core.Point3D.create(0, 0, 0), self.pitchDiameter / 2)
-            pitchDiameterCircle.isConstruction = True
-            pitchDiameterCircle.isFixed = True
-
             # Storres a copy of the newly generated gear    
 
             lastGear = tbm.copy(gearBody)
@@ -527,6 +519,14 @@ class HelicalGear:
                 component.bRepBodies.add(lastGear, baseFeature)
             else:
                 component.bRepBodies.add(lastGear)
+
+        # Draws pitch diameter
+        pitchDiameterSketch = component.sketches.add(component.xYConstructionPlane)
+        pitchDiameterSketch.name = "PD: {0:.3f}mm".format(self.pitchDiameter * 10)
+        pitchDiameterCircle = pitchDiameterSketch.sketchCurves.sketchCircles.addByCenterRadius(
+            adsk.core.Point3D.create(0, 0, 0), self.pitchDiameter / 2)
+        pitchDiameterCircle.isConstruction = True
+        pitchDiameterCircle.isFixed = True
 
         # Finishes BaseFeature if it exists
         if (baseFeature):
@@ -791,16 +791,6 @@ class RackGear:
             for b in tools:
                 b.deleteMe()
 
-            # Adds "pitch diameter" line
-            pitchDiameterSketch = component.sketches.add(component.xYConstructionPlane)
-            pitchDiameterSketch.name = "Pitch Diameter Line"
-            pitchDiameterLine = pitchDiameterSketch.sketchCurves.sketchLines.addByTwoPoints(
-                adsk.core.Point3D.create(-self.length / 2, 0, 0),
-                adsk.core.Point3D.create(self.length / 2, 0, 0)
-            )
-            pitchDiameterLine.isFixed = True
-            pitchDiameterLine.isConstruction = True
-
             # Storres a copy of the newly generated gear            
             lastGear = tbm.copy(gearBody)
         else:
@@ -808,6 +798,17 @@ class RackGear:
                 component.bRepBodies.add(lastGear, baseFeature)
             else:
                 component.bRepBodies.add(lastGear)
+
+        # Adds "pitch diameter" line
+        pitchDiameterSketch = component.sketches.add(component.xYConstructionPlane)
+        pitchDiameterSketch.name = "Pitch Diameter Line"
+        pitchDiameterLine = pitchDiameterSketch.sketchCurves.sketchLines.addByTwoPoints(
+            adsk.core.Point3D.create(-self.length / 2, 0, 0),
+            adsk.core.Point3D.create(self.length / 2, 0, 0)
+        )
+        pitchDiameterLine.isFixed = True
+        pitchDiameterLine.isConstruction = True
+
 
         if (baseFeature):
             baseFeature.finishEdit()
