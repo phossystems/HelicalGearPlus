@@ -12,13 +12,17 @@
 import adsk.core, adsk.fusion, traceback
 import math
 
-# Global set of event handlers to keep them referenced for the duration of the command
+# Global set of event _handlers to keep them referenced for the duration of the command
 _handlers = []
 
-COMMAND_ID = "helicalGearPlus"
-COMMAND_NAME = "Helical Gear+"
-COMMAND_TOOLTIP = "Generates Helical Gears"
-TOOLBAR_PANELS = ["SolidCreatePanel"]
+# Caches last gear for 
+lastGear = None
+lastInput = ""
+
+COMMANDID = "helicalGearPlus"
+COMMANDNAME = "Helical Gear+"
+COMMANDTOOLTIP = "Generates Helical Gears"
+TOOLBARPANELS = ["SolidCreatePanel"]
 
 # Initial persistence Dict
 pers = {
@@ -43,31 +47,31 @@ class Involute:
     def __init__(self, gear):
         self.gear = gear
 
-    def draw(self, sketch, z_shift=0, rotation=0, involutePointCount=10):
+    def draw(self, sketch, zShift=0, rotation=0, involutePointCount=10):
         # Calculate points along the involute curve.
-        origin_point = adsk.core.Point3D.create(0, 0, z_shift)
+        originPoint = adsk.core.Point3D.create(0, 0, zShift)
         involutePoints = []
-        key_points = []
+        keyPoints = []
 
-        if self.gear.base_diameter >= self.gear.root_diameter:
-            involute_from_rad = self.gear.base_diameter / 2.0
+        if self.gear.baseDiameter >= self.gear.rootDiameter:
+            involuteFromRad = self.gear.baseDiameter / 2.0
         else:
-            involute_from_rad = self.gear.root_diameter / 2
-        radiusStep = (self.gear.outside_diameter / 2 - involute_from_rad) / (involutePointCount - 1)
-        involuteIntersectionRadius = involute_from_rad
+            involuteFromRad = self.gear.rootDiameter / 2
+        radiusStep = (self.gear.outsideDiameter / 2 - involuteFromRad) / (involutePointCount - 1)
+        involuteIntersectionRadius = involuteFromRad
         for i in range(0, involutePointCount):
-            newPoint = self._involute_point(self.gear.base_diameter / 2.0, involuteIntersectionRadius, z_shift)
+            newPoint = self.InvolutePoint(self.gear.baseDiameter / 2.0, involuteIntersectionRadius, zShift)
             involutePoints.append(newPoint)
             involuteIntersectionRadius = involuteIntersectionRadius + radiusStep
 
         # Determine the angle between the X axis and a line between the origin of the curve
         # and the intersection point between the involute and the pitch diameter circle.
-        pitchInvolutePoint = self._involute_point(self.gear.base_diameter / 2.0, self.gear.pitch_diameter / 2.0,
-                                                  z_shift)
+        pitchInvolutePoint = self.InvolutePoint(self.gear.baseDiameter / 2.0, self.gear.pitchDiameter / 2.0,
+                                                zShift)
         pitchPointAngle = math.atan2(pitchInvolutePoint.y, pitchInvolutePoint.x)
 
         # Rotate the involute so the intersection point lies on the x axis.
-        rotateAngle = -((self.gear.tooth_arc_angle / 4) + pitchPointAngle - (self.gear.backlash_angle / 4))
+        rotateAngle = -((self.gear.toothArcAngle / 4) + pitchPointAngle - (self.gear.backlashAngle / 4))
         cosAngle = math.cos(rotateAngle)
         sinAngle = math.sin(rotateAngle)
         for i in range(0, involutePointCount):
@@ -80,7 +84,7 @@ class Involute:
         # points about the X axis.
         involute2Points = []
         for i in range(0, involutePointCount):
-            involute2Points.append(adsk.core.Point3D.create(involutePoints[i].x, -involutePoints[i].y, z_shift))
+            involute2Points.append(adsk.core.Point3D.create(involutePoints[i].x, -involutePoints[i].y, zShift))
 
         # Rotate involute
         if rotation:
@@ -109,87 +113,87 @@ class Involute:
             pointSet1.add(involutePoints[i])
             pointSet2.add(involute2Points[i])
 
-        mid_index = int(pointSet1.count / 2)
-        key_points.append(pointSet1.item(0))
-        key_points.append(pointSet2.item(0))
-        key_points.append(pointSet1.item(mid_index))
-        key_points.append(pointSet2.item(mid_index))
+        midIndex = int(pointSet1.count / 2)
+        keyPoints.append(pointSet1.item(0))
+        keyPoints.append(pointSet2.item(0))
+        keyPoints.append(pointSet1.item(midIndex))
+        keyPoints.append(pointSet2.item(midIndex))
 
         # Create splines.
         spline1 = sketch.sketchCurves.sketchFittedSplines.add(pointSet1)
         spline2 = sketch.sketchCurves.sketchFittedSplines.add(pointSet2)
         oc = adsk.core.ObjectCollection.create()
         oc.add(spline2)
-        (_, _, cross_points) = spline1.intersections(oc)
-        assert len(cross_points) == 0 or len(cross_points) == 1, 'Failed to compute a valid involute profile!'
-        if len(cross_points) == 1:
+        (_, _, crossPoints) = spline1.intersections(oc)
+        assert len(crossPoints) == 0 or len(crossPoints) == 1, 'Failed to compute a valid involute profile!'
+        if len(crossPoints) == 1:
             # involute splines cross, clip the tooth
             # clip = spline1.endSketchPoint.geometry.copy()
             # spline1 = spline1.trim(spline2.endSketchPoint.geometry).item(0)
             # spline2 = spline2.trim(clip).item(0)
-            key_points.append(cross_points[0])
+            keyPoints.append(crossPoints[0])
         else:
             # Draw the tip of the tooth - connect the splines
-            if self.gear.tooth_count >= 100:
+            if self.gear.toothCount >= 100:
                 sketch.sketchCurves.sketchLines.addByTwoPoints(spline1.endSketchPoint, spline2.endSketchPoint)
-                key_points.append(spline1.endSketchPoint.geometry)
-                key_points.append(spline2.endSketchPoint.geometry)
+                keyPoints.append(spline1.endSketchPoint.geometry)
+                keyPoints.append(spline2.endSketchPoint.geometry)
             else:
-                tip_curve1Angle = math.atan2(involutePoints[-1].y, involutePoints[-1].x)
-                tip_curve2Angle = math.atan2(involute2Points[-1].y, involute2Points[-1].x)
-                if tip_curve2Angle < tip_curve1Angle:
-                    tip_curve2Angle += math.pi * 2
-                tip_rad = origin_point.distanceTo(involutePoints[-1])
-                tip_arc = sketch.sketchCurves.sketchArcs.addByCenterStartSweep(
-                    origin_point,
-                    adsk.core.Point3D.create(math.cos(tip_curve1Angle) * tip_rad,
-                                             math.sin(tip_curve1Angle) * tip_rad,
-                                             z_shift),
-                    tip_curve2Angle - tip_curve1Angle)
-                key_points.append(tip_arc.startSketchPoint.geometry)
-                key_points.append(adsk.core.Point3D.create(tip_rad, 0, z_shift))
-                key_points.append(tip_arc.endSketchPoint.geometry)
+                tipCurve1Angle = math.atan2(involutePoints[-1].y, involutePoints[-1].x)
+                tipCurve2Angle = math.atan2(involute2Points[-1].y, involute2Points[-1].x)
+                if tipCurve2Angle < tipCurve1Angle:
+                    tipCurve2Angle += math.pi * 2
+                tipRad = originPoint.distanceTo(involutePoints[-1])
+                tipArc = sketch.sketchCurves.sketchArcs.addByCenterStartSweep(
+                    originPoint,
+                    adsk.core.Point3D.create(math.cos(tipCurve1Angle) * tipRad,
+                                             math.sin(tipCurve1Angle) * tipRad,
+                                             zShift),
+                    tipCurve2Angle - tipCurve1Angle)
+                keyPoints.append(tipArc.startSketchPoint.geometry)
+                keyPoints.append(adsk.core.Point3D.create(tipRad, 0, zShift))
+                keyPoints.append(tipArc.endSketchPoint.geometry)
 
         # Draw root circle
-        # root_circle = sketch.sketchCurves.sketchCircles.addByCenterRadius(origin_point, self.gear.root_diameter/2)
-        root_arc = sketch.sketchCurves.sketchArcs.addByCenterStartSweep(
-            origin_point,
-            adsk.core.Point3D.create(math.cos(curve1Angle) * (self.gear.root_diameter / 2 - 0.01),
-                                     math.sin(curve1Angle) * (self.gear.root_diameter / 2 - 0.01),
-                                     z_shift),
+        # rootCircle = sketch.sketchCurves.sketchCircles.addByCenterRadius(originPoint, self.gear.rootDiameter/2)
+        rootArc = sketch.sketchCurves.sketchArcs.addByCenterStartSweep(
+            originPoint,
+            adsk.core.Point3D.create(math.cos(curve1Angle) * (self.gear.rootDiameter / 2 - 0.01),
+                                     math.sin(curve1Angle) * (self.gear.rootDiameter / 2 - 0.01),
+                                     zShift),
             curve2Angle - curve1Angle)
 
         # if the offset tooth profile crosses the offset circle then trim it, else connect the offset tooth to the circle
         oc = adsk.core.ObjectCollection.create()
         oc.add(spline1)
         if True:
-            if root_arc.intersections(oc)[1].count > 0:
-                spline1 = spline1.trim(origin_point).item(0)
-                spline2 = spline2.trim(origin_point).item(0)
-                root_arc.trim(root_arc.startSketchPoint.geometry)
-                root_arc.trim(root_arc.endSketchPoint.geometry)
+            if rootArc.intersections(oc)[1].count > 0:
+                spline1 = spline1.trim(originPoint).item(0)
+                spline2 = spline2.trim(originPoint).item(0)
+                rootArc.trim(rootArc.startSketchPoint.geometry)
+                rootArc.trim(rootArc.endSketchPoint.geometry)
             else:
-                sketch.sketchCurves.sketchLines.addByTwoPoints(origin_point, spline1.startSketchPoint).trim(
-                    origin_point)
-                sketch.sketchCurves.sketchLines.addByTwoPoints(origin_point, spline2.startSketchPoint).trim(
-                    origin_point)
+                sketch.sketchCurves.sketchLines.addByTwoPoints(originPoint, spline1.startSketchPoint).trim(
+                    originPoint)
+                sketch.sketchCurves.sketchLines.addByTwoPoints(originPoint, spline2.startSketchPoint).trim(
+                    originPoint)
         else:
-            if root_arc.intersections(oc)[1].count > 0:
-                spline1 = spline1.trim(origin_point).item(0)
-                spline2 = spline2.trim(origin_point).item(0)
-            root_arc.deleteMe()
-            sketch.sketchCurves.sketchLines.addByTwoPoints(origin_point, spline1.startSketchPoint)
-            sketch.sketchCurves.sketchLines.addByTwoPoints(origin_point, spline2.startSketchPoint)
+            if rootArc.intersections(oc)[1].count > 0:
+                spline1 = spline1.trim(originPoint).item(0)
+                spline2 = spline2.trim(originPoint).item(0)
+            rootArc.deleteMe()
+            sketch.sketchCurves.sketchLines.addByTwoPoints(originPoint, spline1.startSketchPoint)
+            sketch.sketchCurves.sketchLines.addByTwoPoints(originPoint, spline2.startSketchPoint)
 
     # Calculate points along an involute curve.
-    def _involute_point(self, baseCircleRadius, distFromCenterToInvolutePoint, z_shift):
+    def InvolutePoint(self, baseCircleRadius, distFromCenterToInvolutePoint, zShift):
         l = math.sqrt(
             distFromCenterToInvolutePoint * distFromCenterToInvolutePoint - baseCircleRadius * baseCircleRadius)
         alpha = l / baseCircleRadius
         theta = alpha - math.acos(baseCircleRadius / distFromCenterToInvolutePoint)
         x = distFromCenterToInvolutePoint * math.cos(theta)
         y = distFromCenterToInvolutePoint * math.sin(theta)
-        return adsk.core.Point3D.create(x, y, z_shift)
+        return adsk.core.Point3D.create(x, y, zShift)
 
 
 class HelicalGear:
@@ -197,292 +201,338 @@ class HelicalGear:
         pass
 
     @property
-    def is_undercut_requried(self):
-        return self.virtual_teeth < self.critcal_virtual_tooth_count
+    def isUndercutRequried(self):
+        return self.virtualTeeth < self.critcalVirtualToothCount
 
     @property
-    def backlash_angle(self):
+    def backlashAngle(self):
         """The backlash is split between both sides of this and (an assumed) mateing gear - each side of a tooth will be narrowed by 1/4 this value."""
-        return 2 * self.backlash / self.pitch_diameter if self.pitch_diameter > 0 else 0
+        return 2 * self.backlash / self.pitchDiameter if self.pitchDiameter > 0 else 0
 
     @property
-    def tooth_arc_angle(self):
+    def toothArcAngle(self):
         """Arc angle of a single tooth."""
-        return 2 * math.pi / self.tooth_count if self.tooth_count > 0 else 0
+        return 2 * math.pi / self.toothCount if self.toothCount > 0 else 0
 
     @property
-    def tip_pressure_angle(self):
+    def tipPressureAngle(self):
         """Pressure angle at the tip of the tooth."""
-        return math.acos(self.base_diameter / self.outside_diameter)
+        return math.acos(self.baseDiameter / self.outsideDiameter)
 
     @property
-    def involute_a(self):
+    def involuteA(self):
         """Involute at nominal pressure angle."""
-        return math.tan(self.pressure_angle) - self.pressure_angle
+        return math.tan(self.pressureAngle) - self.pressureAngle
 
     @property
-    def involute_aa(self):
+    def involuteAa(self):
         """Involute at tip pressure angle."""
-        return math.tan(self.tip_pressure_angle) - self.tip_pressure_angle
+        return math.tan(self.tipPressureAngle) - self.tipPressureAngle
 
     @property
-    def profile_shift_coefficient(self):
+    def profileShiftCoefficient(self):
         """Profile shift coefficient without undercut."""
-        return 1 - (self.tooth_count / 2) * math.pow(math.sin(self.pressure_angle), 2)
+        return 1 - (self.toothCount / 2) * math.pow(math.sin(self.pressureAngle), 2)
 
     @property
-    def top_land_angle(self):
+    def topLandAngle(self):
         """Top land is the (sometimes flat) surface of the top of a gear tooth.
         DOES NOT APPEAR TO PRODUCE THE CORRECT VALUE."""
-        return (math.pi / (2 * self.tooth_count)) + (
-                (2 * self.profile_shift_coefficient * math.tan(self.pressure_angle)) / self.tooth_count) + (
-                       self.involute_a - self.involute_aa)
+        return (math.pi / (2 * self.toothCount)) + (
+                (2 * self.profileShiftCoefficient * math.tan(self.pressureAngle)) / self.toothCount) + (
+                       self.involuteA - self.involuteAa)
 
     @property
-    def top_land_thickness(self):
+    def topLandThickness(self):
         """Top land is the (sometimes flat) surface of the top of a gear tooth.
         DOES NOT APPEAR TO PRODUCE THE CORRECT VALUE."""
-        return math.radians(self.top_land_angle) * self.outside_diameter
+        return math.radians(self.topLandAngle) * self.outsideDiameter
 
     @property
-    def critcal_virtual_tooth_count(self):
-        q = math.pow(math.sin(self.normal_pressure_angle), 2)
+    def critcalVirtualToothCount(self):
+        q = math.pow(math.sin(self.normalPressureAngle), 2)
         return 2 / q if q != 0 else float('inf')
 
     @property
-    def is_invalid(self):
+    def isInvalid(self):
         if (self.width <= 0):
             return "Width too low"
-        if (math.radians(-90) > self.helix_angle):
+        if (math.radians(-90) > self.helixAngle):
             return "Helix angle too low"
-        if (math.radians(90) < self.helix_angle):
+        if (math.radians(90) < self.helixAngle):
             return "Helix angle too high"
         if (self.module <= 0):
             return "Module to low"
         if (self.addendum <= 0):
             return "Addendum too low"
-        if (self.whole_depth <= 0):
+        if (self.wholeDepth <= 0):
             return "Dedendum too low"
-        if (self.pressure_angle < 0):
+        if (self.pressureAngle < 0):
             return "Pressure angle too low"
-        if (self.pressure_angle > math.radians(80)):
+        if (self.pressureAngle > math.radians(80)):
             return "Pressure angle too high"
-        if (self.normal_pressure_angle < 0):
+        if (self.normalPressureAngle < 0):
             return "Pressure angle too low"
-        if (self.normal_pressure_angle > math.radians(80)):
+        if (self.normalPressureAngle > math.radians(80)):
             return "Pressure angle too high"
-        if (self.tooth_count <= 0):
+        if (self.toothCount <= 0):
             return "Too few teeth"
-        if (abs(self.backlash_angle) / 4 >= self.tooth_arc_angle / 8):
+        if (abs(self.backlashAngle) / 4 >= self.toothArcAngle / 8):
             return "Backlash too high"
-        if (self.internal_outside_diameter):
-            if (self.internal_outside_diameter <= self.outside_diameter):
+        if (self.internalOutsideDiameter):
+            if (self.internalOutsideDiameter <= self.outsideDiameter):
                 return "Outside diameter too low"
-        if (self.circular_pitch <= 0):
-            return "Invalid: circular_pitch"
-        if (self.base_diameter <= 0):
+        if (self.circularPitch <= 0):
+            return "Invalid: circularPitch"
+        if (self.baseDiameter <= 0):
             return "Invalid Gear"
-        if (self.pitch_diameter <= 0):
+        if (self.pitchDiameter <= 0):
             return "Invalid Gear"
-        if (self.root_diameter <= 0.03):
+        if (self.rootDiameter <= 0.03):
             return "Invalid Gear"
-        if (self.outside_diameter <= 0):
+        if (self.outsideDiameter <= 0):
             return "Invalid Gear"
         return False
 
     @property
-    def vertical_loop_seperation(self):
-        return math.tan(math.radians(90) + self.helix_angle) * self.pitch_diameter * math.pi
+    def verticalLoopSeperation(self):
+        return math.tan(math.radians(90) + self.helixAngle) * self.pitchDiameter * math.pi
 
     # returns the number of turns for a given distance
-    def t_for(self, displacement):
-        return displacement / (math.tan(math.radians(90) + self.helix_angle) * (self.pitch_diameter / 2))
+    def tFor(self, displacement):
+        return displacement / (math.tan(math.radians(90) + self.helixAngle) * (self.pitchDiameter / 2))
 
     def __str__(self):
         str = ''
         str += '\n'
-        str += 'root diameter..............:  {0:.3f} mm\n'.format(self.root_diameter * 10)
-        str += 'base diameter.............:  {0:.3f} mm\n'.format(self.base_diameter * 10)
-        str += 'pitch diameter............:  {0:.3f} mm\n'.format(self.pitch_diameter * 10)
-        str += 'outside diameter.........:  {0:.3f} mm\n'.format(self.outside_diameter * 10)
+        str += 'root diameter..............:  {0:.3f} mm\n'.format(self.rootDiameter * 10)
+        str += 'base diameter.............:  {0:.3f} mm\n'.format(self.baseDiameter * 10)
+        str += 'pitch diameter............:  {0:.3f} mm\n'.format(self.pitchDiameter * 10)
+        str += 'outside diameter.........:  {0:.3f} mm\n'.format(self.outsideDiameter * 10)
         str += '\n'
         str += 'module.......................:  {0:.3f} mm\n'.format(self.module * 10)
-        str += 'normal module...........:  {0:.3f} mm\n'.format(self.normal_module * 10)
-        str += 'pressure angle............:  {0:.3f} deg\n'.format(math.degrees(self.pressure_angle))
-        str += 'normal pressure angle:  {0:.3f} deg\n'.format(math.degrees(self.normal_pressure_angle))
+        str += 'normal module...........:  {0:.3f} mm\n'.format(self.normalModule * 10)
+        str += 'pressure angle............:  {0:.3f} deg\n'.format(math.degrees(self.pressureAngle))
+        str += 'normal pressure angle:  {0:.3f} deg\n'.format(math.degrees(self.normalPressureAngle))
         str += '\n'
-        if (self.helix_angle != 0):
-            str += 'length per revolution..:  {0:.3f} mm\n'.format(abs(self.vertical_loop_seperation) * 10)
+        if (self.helixAngle != 0):
+            str += 'length per revolution..:  {0:.3f} mm\n'.format(abs(self.verticalLoopSeperation) * 10)
             str += '\n'
         return str
 
     @staticmethod
-    def create_in_normal_system(tooth_count, normal_module, normal_pressure_angle, helix_angle, backlash=0, addendum=1,
-                                dedendum=1.25, width=1, herringbone=False, internal_outside_diameter=None):
-        tooth_count = tooth_count if tooth_count > 0 else 1
-        # normal_module = normal_module if normal_module > 0 else 1e-10
-        # normal_pressure_angle = normal_pressure_angle if 0 <= normal_pressure_angle < math.radians(90) else 0
-        # helix_angle = helix_angle if math.radians(-90) < helix_angle < math.radians(90) else 0
+    def createInNormalSystem(toothCount, normalModule, normalPressureAngle, helixAngle, backlash=0, addendum=1,
+                             dedendum=1.25, width=1, herringbone=False, internalOutsideDiameter=None):
+        toothCount = toothCount if toothCount > 0 else 1
+        # normalModule = normalModule if normalModule > 0 else 1e-10
+        # normalPressureAngle = normalPressureAngle if 0 <= normalPressureAngle < math.radians(90) else 0
+        # helixAngle = helixAngle if math.radians(-90) < helixAngle < math.radians(90) else 0
 
         gear = HelicalGear()
         gear.backlash = backlash
-        gear.helix_angle = helix_angle
-        gear.tooth_count = tooth_count
+        gear.helixAngle = helixAngle
+        gear.toothCount = toothCount
         gear.width = width
         gear.herringbone = herringbone
-        gear.internal_outside_diameter = internal_outside_diameter
+        gear.internalOutsideDiameter = internalOutsideDiameter
 
-        gear.normal_module = normal_module
-        gear.normal_pressure_angle = normal_pressure_angle
+        gear.normalModule = normalModule
+        gear.normalPressureAngle = normalPressureAngle
 
-        gear.normal_circular_pitch = gear.normal_module * math.pi
-        cos_helix_angle = math.cos(helix_angle)
-        gear.virtual_teeth = gear.tooth_count / math.pow(cos_helix_angle, 3)
+        gear.normalCircularPitch = gear.normalModule * math.pi
+        cosHelixAngle = math.cos(helixAngle)
+        gear.virtualTeeth = gear.toothCount / math.pow(cosHelixAngle, 3)
 
         # Radial / Transverse figures
-        gear.module = gear.normal_module / cos_helix_angle
-        gear.pressure_angle = math.atan2(math.tan(gear.normal_pressure_angle), cos_helix_angle)
-        gear.pitch_diameter = gear.module * gear.tooth_count
-        gear.base_diameter = gear.pitch_diameter * math.cos(gear.pressure_angle)
-        gear.addendum = addendum * gear.normal_module
-        gear.whole_depth = (addendum + dedendum) * gear.normal_module
-        gear.outside_diameter = gear.pitch_diameter + 2 * gear.addendum
-        gear.root_diameter = gear.outside_diameter - 2 * gear.whole_depth
-        gear.circular_pitch = gear.module * math.pi
+        gear.module = gear.normalModule / cosHelixAngle
+        gear.pressureAngle = math.atan2(math.tan(gear.normalPressureAngle), cosHelixAngle)
+        gear.pitchDiameter = gear.module * gear.toothCount
+        gear.baseDiameter = gear.pitchDiameter * math.cos(gear.pressureAngle)
+        gear.addendum = addendum * gear.normalModule
+        gear.wholeDepth = (addendum + dedendum) * gear.normalModule
+        gear.outsideDiameter = gear.pitchDiameter + 2 * gear.addendum
+        gear.rootDiameter = gear.outsideDiameter - 2 * gear.wholeDepth
+        gear.circularPitch = gear.module * math.pi
 
         return gear
 
     @staticmethod
-    def create_in_radial_system(tooth_count, radial_module, radial_pressure_angle, helix_angle, backlash=0, addendum=1,
-                                dedendum=1.25, width=1, herringbone=False, internal_outside_diameter=None):
-        tooth_count = tooth_count if tooth_count > 0 else 1
-        radial_module = radial_module if radial_module > 0 else 1e-10
-        radial_pressure_angle = radial_pressure_angle if 0 <= radial_pressure_angle < math.radians(90) else 0
-        helix_angle = helix_angle if math.radians(-90) < helix_angle < math.radians(90) else 0
+    def createInRadialSystem(toothCount, radialModule, radialPressureAngle, helixAngle, backlash=0, addendum=1,
+                             dedendum=1.25, width=1, herringbone=False, internalOutsideDiameter=None):
+        toothCount = toothCount if toothCount > 0 else 1
+        radialModule = radialModule if radialModule > 0 else 1e-10
+        radialPressureAngle = radialPressureAngle if 0 <= radialPressureAngle < math.radians(90) else 0
+        helixAngle = helixAngle if math.radians(-90) < helixAngle < math.radians(90) else 0
 
         gear = HelicalGear()
         gear.backlash = backlash
-        gear.helix_angle = helix_angle
-        gear.tooth_count = tooth_count
+        gear.helixAngle = helixAngle
+        gear.toothCount = toothCount
         gear.width = width
         gear.herringbone = herringbone
-        gear.internal_outside_diameter = internal_outside_diameter
+        gear.internalOutsideDiameter = internalOutsideDiameter
 
-        gear.normal_module = radial_module * math.cos(gear.helix_angle)
-        gear.normal_pressure_angle = math.atan(math.tan(radial_pressure_angle) * math.cos(gear.helix_angle))
-        gear.normal_circular_pitch = gear.normal_module * math.pi
+        gear.normalModule = radialModule * math.cos(gear.helixAngle)
+        gear.normalPressureAngle = math.atan(math.tan(radialPressureAngle) * math.cos(gear.helixAngle))
+        gear.normalCircularPitch = gear.normalModule * math.pi
 
-        cos_helix_angle = math.cos(helix_angle)
-        gear.virtual_teeth = gear.tooth_count / math.pow(cos_helix_angle, 3)
+        cosHelixAngle = math.cos(helixAngle)
+        gear.virtualTeeth = gear.toothCount / math.pow(cosHelixAngle, 3)
 
         # Radial / Transverse figures
-        gear.module = radial_module
-        gear.pressure_angle = radial_pressure_angle
-        gear.pitch_diameter = gear.module * gear.tooth_count
-        gear.base_diameter = gear.pitch_diameter * math.cos(gear.pressure_angle)
+        gear.module = radialModule
+        gear.pressureAngle = radialPressureAngle
+        gear.pitchDiameter = gear.module * gear.toothCount
+        gear.baseDiameter = gear.pitchDiameter * math.cos(gear.pressureAngle)
         gear.addendum = gear.module
-        gear.whole_depth = 2.25 * gear.module
-        gear.outside_diameter = gear.pitch_diameter + 2 * gear.addendum
-        gear.root_diameter = gear.outside_diameter - 2 * gear.whole_depth
-        gear.circular_pitch = gear.module * math.pi
+        gear.wholeDepth = 2.25 * gear.module
+        gear.outsideDiameter = gear.pitchDiameter + 2 * gear.addendum
+        gear.rootDiameter = gear.outsideDiameter - 2 * gear.wholeDepth
+        gear.circularPitch = gear.module * math.pi
 
         return gear
 
-    def model_gear(self, parent_component):
+    def modelGear(self, parentComponent, sameAsLast=False):
+        # Storres a copy of the last gear generated to speed up regeneation of the same gear
+        global lastGear
+
+        # The temporaryBRep manager is a tool for creating 3d geometry without the use of features
+        # The word temporary referrs to the geometry being created being virtual, but It can easily be converted to actual geometry
+        tbm = adsk.fusion.TemporaryBRepManager.get()
         # Create new component
-        component = parent_component.occurrences.addNewComponent(adsk.core.Matrix3D.create()).component
+        occurrence = parentComponent.occurrences.addNewComponent(adsk.core.Matrix3D.create())
+        component = occurrence.component
         component.name = 'Healical Gear ({0}{1}@{2:.2f} m={3})'.format(
-            self.tooth_count,
-            'L' if self.helix_angle < 0 else 'R',
-            abs(math.degrees(self.helix_angle)),
-            round(self.normal_module * 10, 4))
+            self.toothCount,
+            'L' if self.helixAngle < 0 else 'R',
+            abs(math.degrees(self.helixAngle)),
+            round(self.normalModule * 10, 4))
 
-        if (parent_component.parentDesign.designType):
-            base_feature = component.features.baseFeatures.add()
-            base_feature.startEdit()
+        # Creates BaseFeature if DesignType is parametric 
+        if (parentComponent.parentDesign.designType):
+            baseFeature = component.features.baseFeatures.add()
+            baseFeature.startEdit()
         else:
-            base_feature = None
-        # Creates sketch and draws tooth profile
-        sketch = component.sketches.add(component.xYConstructionPlane)
-        involute = Involute(self)
-        sketch.isComputeDeferred = True
-        # All Teeth
-        for i in range(self.tooth_count):
-            involute.draw(sketch, 0, (i / self.tooth_count) * 2 * math.pi)
-        # Base Circle
-        sketch.sketchCurves.sketchCircles.addByCenterRadius(adsk.core.Point3D.create(0, 0, 0), self.root_diameter / 2)
-        # Sweep path
-        if (self.herringbone):
-            line1 = sketch.sketchCurves.sketchLines.addByTwoPoints(adsk.core.Point3D.create(0, 0, 0),
-                                                                   adsk.core.Point3D.create(0, 0, self.width / 2))
-            line2 = sketch.sketchCurves.sketchLines.addByTwoPoints(adsk.core.Point3D.create(0, 0, 0),
-                                                                   adsk.core.Point3D.create(0, 0, -self.width / 2))
-        else:
-            line1 = sketch.sketchCurves.sketchLines.addByTwoPoints(adsk.core.Point3D.create(0, 0, 0),
-                                                                   adsk.core.Point3D.create(0, 0, self.width))
-        sketch.isComputeDeferred = False
-        profs = adsk.core.ObjectCollection.create()
-        for prof in sketch.profiles:
-            profs.add(prof)
-        if (self.herringbone):
-            path1 = component.features.createPath(line1)
-            sweepInput = component.features.sweepFeatures.createInput(profs, path1,
-                                                                      adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
-            sweepInput.twistAngle = adsk.core.ValueInput.createByReal(-self.t_for(self.width / 2))
-            if (base_feature):
-                sweepInput.targetBaseFeature = base_feature
-            sweepFeature = component.features.sweepFeatures.add(sweepInput)
+            baseFeature = None
 
-            path2 = component.features.createPath(line2)
-            sweepInput = component.features.sweepFeatures.createInput(profs, path2,
-                                                                      adsk.fusion.FeatureOperations.JoinFeatureOperation)
-            sweepInput.twistAngle = adsk.core.ValueInput.createByReal(self.t_for(self.width / 2))
-            if (base_feature):
-                sweepInput.targetBaseFeature = base_feature
-            gearBody = sweepFeature = component.features.sweepFeatures.add(sweepInput).bodies.item(0)
-        else:
-            path1 = component.features.createPath(line1)
-            sweepInput = component.features.sweepFeatures.createInput(profs, path1,
-                                                                      adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
-            sweepInput.twistAngle = adsk.core.ValueInput.createByReal(-self.t_for(self.width))
-            if (base_feature):
-                sweepInput.targetBaseFeature = base_feature
-            gearBody = sweepFeature = component.features.sweepFeatures.add(sweepInput).bodies.item(0)
-        if (self.internal_outside_diameter):
-            # The temporaryBRep manager is a tool for creating 3d geometry without the use of features
-            # The word temporary referrs to the geometry being created being virtual, but It can easily be converted to actual geometry
-            tbm = adsk.fusion.TemporaryBRepManager.get()
-            if (self.herringbone):
+        if (not (sameAsLast and lastGear)):
+
+            # Creates sketch and draws tooth profile
+            involute = Involute(self)
+
+            # Creates profile on z=0 if herringbone and on bottom if not
+            if (not self.herringbone):
+                plane = adsk.core.Plane.create(adsk.core.Point3D.create(0, 0, -self.width / 2),
+                                               adsk.core.Vector3D.create(0, 0, 1))
+                # Creates an object responsible for passing all required data to create a construction plane
+                planeInput = component.constructionPlanes.createInput()
+                # Sets the plane input by plane
+                planeInput.setByPlane(plane)
+                # Adds plain input to construction planes
+                cPlane = component.constructionPlanes.add(planeInput)
+                sketch = component.sketches.add(cPlane)
+                cPlane.deleteMe()
+                sketch.isComputeDeferred = True
+                # Draws All Teeth
+                # TODO: Optimize by copying instead of regenerating
+                for i in range(self.toothCount):
+                    involute.draw(sketch, 0, (i / self.toothCount) * 2 * math.pi)
+                # Base Circle
+                sketch.sketchCurves.sketchCircles.addByCenterRadius(adsk.core.Point3D.create(0, 0, 0),
+                                                                    self.rootDiameter / 2)
+            else:
+                sketch = component.sketches.add(component.xYConstructionPlane)
+                sketch.isComputeDeferred = True
+                # Draws All Teeth
+                # TODO: Optimize by copying instead of regenerating
+                for i in range(self.toothCount):
+                    involute.draw(sketch, 0, (i / self.toothCount) * 2 * math.pi)
+                # Base Circle
+                sketch.sketchCurves.sketchCircles.addByCenterRadius(adsk.core.Point3D.create(0, 0, 0),
+                                                                    self.rootDiameter / 2)
+
+            # Creates path line for sweep feature
+            if (not self.herringbone):
+                line1 = sketch.sketchCurves.sketchLines.addByTwoPoints(adsk.core.Point3D.create(0, 0, 0),
+                                                                       adsk.core.Point3D.create(0, 0, self.width))
+            else:
+                line1 = sketch.sketchCurves.sketchLines.addByTwoPoints(adsk.core.Point3D.create(0, 0, 0),
+                                                                       adsk.core.Point3D.create(0, 0, self.width / 2))
+                line2 = sketch.sketchCurves.sketchLines.addByTwoPoints(adsk.core.Point3D.create(0, 0, 0),
+                                                                       adsk.core.Point3D.create(0, 0, -self.width / 2))
+
+            # Reactivates sketch computation and puts all profules into an OC              
+            sketch.isComputeDeferred = False
+            profs = adsk.core.ObjectCollection.create()
+            for prof in sketch.profiles:
+                profs.add(prof)
+
+            # Creates sweeep features
+            if (not self.herringbone):
+                path1 = component.features.createPath(line1)
+                sweepInput = component.features.sweepFeatures.createInput(profs, path1,
+                                                                          adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
+                sweepInput.twistAngle = adsk.core.ValueInput.createByReal(-self.tFor(self.width))
+                if (baseFeature):
+                    sweepInput.targetBaseFeature = baseFeature
+                gearBody = sweepFeature = component.features.sweepFeatures.add(sweepInput).bodies.item(0)
+            else:
+                path1 = component.features.createPath(line1)
+                sweepInput = component.features.sweepFeatures.createInput(profs, path1,
+                                                                          adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
+                sweepInput.twistAngle = adsk.core.ValueInput.createByReal(-self.tFor(self.width / 2))
+                if (baseFeature):
+                    sweepInput.targetBaseFeature = baseFeature
+                sweepFeature = component.features.sweepFeatures.add(sweepInput)
+
+                path2 = component.features.createPath(line2)
+                sweepInput = component.features.sweepFeatures.createInput(profs, path2,
+                                                                          adsk.fusion.FeatureOperations.JoinFeatureOperation)
+                sweepInput.twistAngle = adsk.core.ValueInput.createByReal(self.tFor(self.width / 2))
+                if (baseFeature):
+                    sweepInput.targetBaseFeature = baseFeature
+                gearBody = sweepFeature = component.features.sweepFeatures.add(sweepInput).bodies.item(0)
+
+            # "Inverts" internal Gears
+            if (self.internalOutsideDiameter):
                 cyl = cylinder = tbm.createCylinderOrCone(adsk.core.Point3D.create(0, 0, -self.width / 2),
-                                                          self.internal_outside_diameter / 2,
+                                                          self.internalOutsideDiameter / 2,
                                                           adsk.core.Point3D.create(0, 0, self.width / 2),
-                                                          self.internal_outside_diameter / 2)
-            else:
-                cyl = cylinder = tbm.createCylinderOrCone(adsk.core.Point3D.create(0, 0, 0),
-                                                          self.internal_outside_diameter / 2,
-                                                          adsk.core.Point3D.create(0, 0, self.width),
-                                                          self.internal_outside_diameter / 2)
-            tbm.booleanOperation(cyl, tbm.copy(gearBody), 0)
-            if (base_feature):
-                component.bRepBodies.add(cyl, base_feature)
-            else:
-                component.bRepBodies.add(cyl)
-            gearBody.deleteMe()
-        # Delete tooth sketch for performance
-        sketch.deleteMe()
-        # Add pitch diameter sketch
-        pitch_diameter_sketch = component.sketches.add(component.xYConstructionPlane)
-        pitch_diameter_sketch.name = "PD: {0:.3f}mm".format(self.pitch_diameter * 10)
-        if (self.herringbone):
-            pitch_diameter_circle = pitch_diameter_sketch.sketchCurves.sketchCircles.addByCenterRadius(
-                adsk.core.Point3D.create(0, 0, 0), self.pitch_diameter / 2)
+                                                          self.internalOutsideDiameter / 2)
+                tbm.booleanOperation(cyl, tbm.copy(gearBody), 0)
+                # Deletes external gear
+                gearBody.deleteMe()
+
+                if (baseFeature):
+                    gearBody = component.bRepBodies.add(cyl, baseFeature)
+                else:
+                    gearBody = component.bRepBodies.add(cyl)
+
+            # Delete tooth sketch for performance
+            sketch.deleteMe()
+
+            # Storres a copy of the newly generated gear    
+
+            lastGear = tbm.copy(gearBody)
         else:
-            pitch_diameter_circle = pitch_diameter_sketch.sketchCurves.sketchCircles.addByCenterRadius(
-                adsk.core.Point3D.create(0, 0, self.width / 2), self.pitch_diameter / 2)
-        pitch_diameter_circle.isConstruction = True
-        pitch_diameter_circle.isFixed = True
-        if (base_feature):
-            base_feature.finishEdit()
+            if (baseFeature):
+                component.bRepBodies.add(lastGear, baseFeature)
+            else:
+                component.bRepBodies.add(lastGear)
+
+        # Draws pitch diameter
+        pitchDiameterSketch = component.sketches.add(component.xYConstructionPlane)
+        pitchDiameterSketch.name = "PD: {0:.3f}mm".format(self.pitchDiameter * 10)
+        pitchDiameterCircle = pitchDiameterSketch.sketchCurves.sketchCircles.addByCenterRadius(
+            adsk.core.Point3D.create(0, 0, 0), self.pitchDiameter / 2)
+        pitchDiameterCircle.isConstruction = True
+        pitchDiameterCircle.isFixed = True
+
+        # Finishes BaseFeature if it exists
+        if (baseFeature):
+            baseFeature.finishEdit()
+
+        return occurrence
 
 
 class RackGear:
@@ -491,36 +541,36 @@ class RackGear:
         pass
 
     @staticmethod
-    def create_in_normal_system(normal_module, normal_pressure_angle, helix_angle, herringbone, length, width, height,
-                                backlash=0, addendum=1, dedendum=1.25):
+    def createInNormalSystem(normalModule, normalPressureAngle, helixAngle, herringbone, length, width, height,
+                             backlash=0, addendum=1, dedendum=1.25):
         gear = RackGear()
 
-        gear.normal_module = normal_module
-        gear.normal_pressure_angle = normal_pressure_angle
-        gear.helix_angle = helix_angle
+        gear.normalModule = normalModule
+        gear.normalPressureAngle = normalPressureAngle
+        gear.helixAngle = helixAngle
         gear.herringbone = herringbone
         gear.length = length
         gear.width = width
         gear.height = height
         gear.backlash = backlash
 
-        gear.addendum = addendum * gear.normal_module
-        gear.dedendum = dedendum * gear.normal_module
+        gear.addendum = addendum * gear.normalModule
+        gear.dedendum = dedendum * gear.normalModule
 
-        cos_helix_angle = math.cos(helix_angle)
-        gear.module = gear.normal_module / cos_helix_angle
-        gear.pressure_angle = math.atan2(math.tan(gear.normal_pressure_angle), cos_helix_angle)
+        cosHelixAngle = math.cos(helixAngle)
+        gear.module = gear.normalModule / cosHelixAngle
+        gear.pressureAngle = math.atan2(math.tan(gear.normalPressureAngle), cosHelixAngle)
 
         return gear
 
     @staticmethod
-    def create_in_radial_system(radial_module, radial_pressure_angle, helix_angle, herringbone, length, width, height,
-                                backlash=0, addendum=1, dedendum=1.25):
+    def createInRadialSystem(radialModule, radialPressureAngle, helixAngle, herringbone, length, width, height,
+                             backlash=0, addendum=1, dedendum=1.25):
         gear = RackGear()
 
-        gear.module = radial_module
-        gear.pressure_angle = radial_pressure_angle
-        gear.helix_angle = helix_angle
+        gear.module = radialModule
+        gear.pressureAngle = radialPressureAngle
+        gear.helixAngle = helixAngle
         gear.herringbone = herringbone
         gear.length = length
         gear.width = width
@@ -530,9 +580,9 @@ class RackGear:
         gear.addendum = addendum * gear.module
         gear.dedendum = dedendum * gear.module
 
-        cos_helix_angle = math.cos(helix_angle)
-        gear.normal_module = gear.module * cos_helix_angle
-        gear.normal_pressure_angle = math.atan(math.tan(radial_pressure_angle) * math.cos(gear.helix_angle))
+        cosHelixAngle = math.cos(helixAngle)
+        gear.normalModule = gear.module * cosHelixAngle
+        gear.normalPressureAngle = math.atan(math.tan(radialPressureAngle) * math.cos(gear.helixAngle))
 
         return gear
 
@@ -540,14 +590,14 @@ class RackGear:
         str = ''
         str += '\n'
         str += 'module.......................:  {0:.3f} mm\n'.format(self.module * 10)
-        str += 'normal module...........:  {0:.3f} mm\n'.format(self.normal_module * 10)
-        str += 'pressure angle............:  {0:.3f} deg\n'.format(math.degrees(self.pressure_angle))
-        str += 'normal pressure angle:  {0:.3f} deg\n'.format(math.degrees(self.normal_pressure_angle))
+        str += 'normal module...........:  {0:.3f} mm\n'.format(self.normalModule * 10)
+        str += 'pressure angle............:  {0:.3f} deg\n'.format(math.degrees(self.pressureAngle))
+        str += 'normal pressure angle:  {0:.3f} deg\n'.format(math.degrees(self.normalPressureAngle))
         str += '\n'
         return str
 
     @property
-    def is_invalid(self):
+    def isInvalid(self):
         if (self.length <= 0):
             return "Length too low"
         if (self.width <= 0):
@@ -562,14 +612,14 @@ class RackGear:
             return "Dedendum too low"
         if (self.addendum + self.dedendum <= 0):
             return "Addendum too low"
-        if (not (0 < self.pressure_angle < math.radians(90))):
+        if (not (0 < self.pressureAngle < math.radians(90))):
             return "Invalid pressure angle"
-        if (not (math.radians(-90) < self.helix_angle < math.radians(90))):
+        if (not (math.radians(-90) < self.helixAngle < math.radians(90))):
             return "Invalid helix angle"
         # Not actually the limit but close enough
-        if ((-3 * self.normal_module) > self.backlash):
+        if ((-3 * self.normalModule) > self.backlash):
             return "Backlash too low"
-        if (self.backlash > (3 * self.normal_module)):
+        if (self.backlash > (3 * self.normalModule)):
             return "Backlash too high"
         return False
 
@@ -633,123 +683,142 @@ class RackGear:
         )
         return lines
 
-    def model_gear(self, parent_component):
+    def modelGear(self, parentComponent, sameAsLast=False):
+        # Storres a copy of the last gear generated to speed up regeneation of the same gear
+        global lastGear
+
         # Create new component
-        component = parent_component.occurrences.addNewComponent(adsk.core.Matrix3D.create()).component
+        occurrence = parentComponent.occurrences.addNewComponent(adsk.core.Matrix3D.create())
+        component = occurrence.component
         component.name = 'Healical Rack ({0}mm {1}@{2:.2f} m={3})'.format(
             self.length * 10,
-            'L' if self.helix_angle < 0 else 'R',
-            abs(math.degrees(self.helix_angle)),
-            round(self.normal_module * 10, 4))
-        if (parent_component.parentDesign.designType):
-            base_feature = component.features.baseFeatures.add()
-            base_feature.startEdit()
+            'L' if self.helixAngle < 0 else 'R',
+            abs(math.degrees(self.helixAngle)),
+            round(self.normalModule * 10, 4))
+        if (parentComponent.parentDesign.designType):
+            baseFeature = component.features.baseFeatures.add()
+            baseFeature.startEdit()
         else:
-            base_feature = None
+            baseFeature = None
 
-        teeth = math.ceil(
-            (self.length + 2 * math.tan(abs(self.helix_angle)) * self.width) / (self.normal_module * math.pi))
-        # The temporaryBRep manager is a tool for creating 3d geometry without the use of features
-        # The word temporary referrs to the geometry being created being virtual, but It can easily be converted to actual geometry
-        tbm = adsk.fusion.TemporaryBRepManager.get()
-        # Array to keep track of TempBRepBodies
-        tempBRepBodies = []
-        # Creates BRep wire object(s), representing edges in 3D space from an array of 3Dcurves
-        if (self.herringbone):
-            wireBody1, _ = tbm.createWireFromCurves(self.rackLines(
-                -self.length / 2 - (math.tan(abs(self.helix_angle)) + math.tan(self.helix_angle)) * self.width / 2,
-                -self.width / 2,
-                0,
-                self.normal_module, teeth, self.height, self.normal_pressure_angle, self.helix_angle,
-                self.backlash, self.addendum, self.dedendum
-            ))
-            wireBody2, _ = tbm.createWireFromCurves(self.rackLines(
-                -self.length / 2 - math.tan(abs(self.helix_angle)) * self.width / 2,
-                0,
-                0,
-                self.normal_module, teeth, self.height, self.normal_pressure_angle, self.helix_angle,
-                self.backlash, self.addendum,
-                self.dedendum
-            ))
-            wireBody3, _ = tbm.createWireFromCurves(self.rackLines(
-                -self.length / 2 - (math.tan(abs(self.helix_angle)) + math.tan(self.helix_angle)) * self.width / 2,
-                self.width / 2,
-                0,
-                self.normal_module, teeth, self.height, self.normal_pressure_angle, self.helix_angle,
-                self.backlash, self.addendum, self.dedendum
-            ))
-        else:
-            wireBody1, _ = tbm.createWireFromCurves(self.rackLines(
-                -self.length / 2 - (math.tan(abs(self.helix_angle)) + math.tan(self.helix_angle)) * self.width,
-                -self.width / 2,
-                0,
-                self.normal_module, teeth, self.height, self.normal_pressure_angle, self.helix_angle,
-                self.backlash, self.addendum, self.dedendum
-            ))
-            wireBody2, _ = tbm.createWireFromCurves(self.rackLines(
-                -self.length / 2 - math.tan(abs(self.helix_angle)) * self.width,
-                self.width / 2,
-                0,
-                self.normal_module, teeth, self.height, self.normal_pressure_angle, self.helix_angle,
-                self.backlash, self.addendum,
-                self.dedendum
-            ))
+        if (not (sameAsLast and lastGear)):
 
-        # Creates the planar end caps.
-        tempBRepBodies.append(tbm.createFaceFromPlanarWires([wireBody1]))
-        if (self.herringbone):
-            tempBRepBodies.append(tbm.createFaceFromPlanarWires([wireBody3]))
-        else:
-            tempBRepBodies.append(tbm.createFaceFromPlanarWires([wireBody2]))
-        # Creates the ruled surface connectiong the two end caps
-        tempBRepBodies.append(tbm.createRuledSurface(wireBody1.wires.item(0), wireBody2.wires.item(0)))
-        if (self.herringbone):
-            tempBRepBodies.append(tbm.createRuledSurface(wireBody2.wires.item(0), wireBody3.wires.item(0)))
-        # Turns surfaces into real BRep so they can be boundary filled
-        tools = adsk.core.ObjectCollection.create()
-        for b in tempBRepBodies:
-            if (base_feature):
-                tools.add(component.bRepBodies.add(b, base_feature))
+            teeth = math.ceil(
+                (self.length + 2 * math.tan(abs(self.helixAngle)) * self.width) / (self.normalModule * math.pi))
+            # The temporaryBRep manager is a tool for creating 3d geometry without the use of features
+            # The word temporary referrs to the geometry being created being virtual, but It can easily be converted to actual geometry
+            tbm = adsk.fusion.TemporaryBRepManager.get()
+            # Array to keep track of TempBRepBodies
+            tempBRepBodies = []
+            # Creates BRep wire object(s), representing edges in 3D space from an array of 3Dcurves
+            if (self.herringbone):
+                wireBody1, _ = tbm.createWireFromCurves(self.rackLines(
+                    -self.length / 2 - (math.tan(abs(self.helixAngle)) + math.tan(self.helixAngle)) * self.width / 2,
+                    -self.width / 2,
+                    0,
+                    self.normalModule, teeth, self.height, self.normalPressureAngle, self.helixAngle,
+                    self.backlash, self.addendum, self.dedendum
+                ))
+                wireBody2, _ = tbm.createWireFromCurves(self.rackLines(
+                    -self.length / 2 - math.tan(abs(self.helixAngle)) * self.width / 2,
+                    0,
+                    0,
+                    self.normalModule, teeth, self.height, self.normalPressureAngle, self.helixAngle,
+                    self.backlash, self.addendum,
+                    self.dedendum
+                ))
+                wireBody3, _ = tbm.createWireFromCurves(self.rackLines(
+                    -self.length / 2 - (math.tan(abs(self.helixAngle)) + math.tan(self.helixAngle)) * self.width / 2,
+                    self.width / 2,
+                    0,
+                    self.normalModule, teeth, self.height, self.normalPressureAngle, self.helixAngle,
+                    self.backlash, self.addendum, self.dedendum
+                ))
             else:
-                tools.add(component.bRepBodies.add(b))
-        # Boundary fills enclosed voulume
-        boundaryFillInput = component.features.boundaryFillFeatures.createInput(tools,
-                                                                                adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
-        if base_feature:
-            boundaryFillInput.targetBaseFeature = base_feature
-        boundaryFillInput.bRepCells.item(0).isSelected = True
-        body = component.features.boundaryFillFeatures.add(boundaryFillInput).bodies.item(0)
-        # Creates a box to cut off angled ends
-        obb = adsk.core.OrientedBoundingBox3D.create(adsk.core.Point3D.create(0, 0, 0),
-                                                     adsk.core.Vector3D.create(1, 0, 0),
-                                                     adsk.core.Vector3D.create(0, 1, 0),
-                                                     self.length, self.width * 2, (self.height + self.addendum) * 2)
-        box = tbm.createBox(obb)
-        tbm.booleanOperation(box, tbm.copy(body), 1)
-        if (base_feature):
-            component.bRepBodies.add(box, base_feature)
+                wireBody1, _ = tbm.createWireFromCurves(self.rackLines(
+                    -self.length / 2 - (math.tan(abs(self.helixAngle)) + math.tan(self.helixAngle)) * self.width,
+                    -self.width / 2,
+                    0,
+                    self.normalModule, teeth, self.height, self.normalPressureAngle, self.helixAngle,
+                    self.backlash, self.addendum, self.dedendum
+                ))
+                wireBody2, _ = tbm.createWireFromCurves(self.rackLines(
+                    -self.length / 2 - math.tan(abs(self.helixAngle)) * self.width,
+                    self.width / 2,
+                    0,
+                    self.normalModule, teeth, self.height, self.normalPressureAngle, self.helixAngle,
+                    self.backlash, self.addendum,
+                    self.dedendum
+                ))
+
+            # Creates the planar end caps.
+            tempBRepBodies.append(tbm.createFaceFromPlanarWires([wireBody1]))
+            if (self.herringbone):
+                tempBRepBodies.append(tbm.createFaceFromPlanarWires([wireBody3]))
+            else:
+                tempBRepBodies.append(tbm.createFaceFromPlanarWires([wireBody2]))
+            # Creates the ruled surface connectiong the two end caps
+            tempBRepBodies.append(tbm.createRuledSurface(wireBody1.wires.item(0), wireBody2.wires.item(0)))
+            if (self.herringbone):
+                tempBRepBodies.append(tbm.createRuledSurface(wireBody2.wires.item(0), wireBody3.wires.item(0)))
+            # Turns surfaces into real BRep so they can be boundary filled
+            tools = adsk.core.ObjectCollection.create()
+            for b in tempBRepBodies:
+                if (baseFeature):
+                    tools.add(component.bRepBodies.add(b, baseFeature))
+                else:
+                    tools.add(component.bRepBodies.add(b))
+            # Boundary fills enclosed voulume
+            boundaryFillInput = component.features.boundaryFillFeatures.createInput(tools,
+                                                                                    adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
+            if baseFeature:
+                boundaryFillInput.targetBaseFeature = baseFeature
+            boundaryFillInput.bRepCells.item(0).isSelected = True
+            body = component.features.boundaryFillFeatures.add(boundaryFillInput).bodies.item(0)
+            # Creates a box to cut off angled ends
+            obb = adsk.core.OrientedBoundingBox3D.create(adsk.core.Point3D.create(0, 0, 0),
+                                                         adsk.core.Vector3D.create(1, 0, 0),
+                                                         adsk.core.Vector3D.create(0, 1, 0),
+                                                         self.length, self.width * 2, (self.height + self.addendum) * 2)
+            box = tbm.createBox(obb)
+            tbm.booleanOperation(box, tbm.copy(body), 1)
+            if (baseFeature):
+                gearBody = component.bRepBodies.add(box, baseFeature)
+            else:
+                gearBody = component.bRepBodies.add(box)
+            body.deleteMe()
+            # Deletes tooling bodies
+            for b in tools:
+                b.deleteMe()
+
+            # Storres a copy of the newly generated gear            
+            lastGear = tbm.copy(gearBody)
         else:
-            component.bRepBodies.add(box)
-        body.deleteMe()
-        # Deletes tooling bodies
-        for b in tools:
-            b.deleteMe()
-        if (base_feature):
-            base_feature.finishEdit()
+            if (baseFeature):
+                component.bRepBodies.add(lastGear, baseFeature)
+            else:
+                component.bRepBodies.add(lastGear)
+
         # Adds "pitch diameter" line
-        pitch_diameter_sketch = component.sketches.add(component.xYConstructionPlane)
-        pitch_diameter_sketch.name = "Pitch Diameter Line"
-        pitch_diameter_line = pitch_diameter_sketch.sketchCurves.sketchLines.addByTwoPoints(
+        pitchDiameterSketch = component.sketches.add(component.xYConstructionPlane)
+        pitchDiameterSketch.name = "Pitch Diameter Line"
+        pitchDiameterLine = pitchDiameterSketch.sketchCurves.sketchLines.addByTwoPoints(
             adsk.core.Point3D.create(-self.length / 2, 0, 0),
             adsk.core.Point3D.create(self.length / 2, 0, 0)
         )
-        pitch_diameter_line.isFixed = True
-        pitch_diameter_line.isConstruction = True
+        pitchDiameterLine.isFixed = True
+        pitchDiameterLine.isConstruction = True
+
+
+        if (baseFeature):
+            baseFeature.finishEdit()
+
+        return occurrence
 
 
 # Fires when the CommandDefinition gets executed.
 # Responsible for adding commandInputs to the command &
-# registering the other command handlers.
+# registering the other command _handlers.
 class CommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
     def __init__(self):
         super().__init__()
@@ -790,7 +859,8 @@ class CommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             # Tabs
             tabSettings = inputs.addTabCommandInput("TabSettings", "Settings")
             tabAdvanced = inputs.addTabCommandInput("TabAdvanced", "Advanced")
-            tabProperties = inputs.addTabCommandInput("TabProperties", "Properties")
+            tabPosition = inputs.addTabCommandInput("TabPosition", "Position")
+            tabProperties = inputs.addTabCommandInput("TabProperties", "Info")
 
             # Setting command Inputs
             ddType = tabSettings.children.addDropDownCommandInput("DDType", "Type", 0)
@@ -876,12 +946,77 @@ class CommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             viDedendum.tooltip = "Dedendum"
             viDedendum.tooltipDescription = "Represents the factor that the root diameter is below the pitch diameter."
 
-            ''' WIP
-            bvReset = tabAdvanced.children.addBoolValueInput("BVReset", "  Reset parameters  ", False)
-            bvReset.isFullWidth = True
-            '''
-
             tbWarning2 = tabAdvanced.children.addTextBoxCommandInput("TBWarning2", "", '', 2, True)
+
+            # Position
+            siPlane = tabPosition.children.addSelectionInput("SIPlane", "Plane", "Select Gear Plane")
+            siPlane.addSelectionFilter("ConstructionPlanes")
+            siPlane.addSelectionFilter("Profiles")
+            siPlane.addSelectionFilter("Faces")
+            siPlane.setSelectionLimits(0, 1)
+            siPlane.tooltip = "Gear Plane"
+            siPlane.tooltipDescription = "Select the plane the gear will be placed on.\n\nValid selections are:\n    Sketch Profiles\n    Construction Planes\n    BRep Faces"
+
+            siDirection = tabPosition.children.addSelectionInput("SIDirection", "Line", "Select Rack Direction")
+            siDirection.addSelectionFilter("ConstructionLines")
+            siDirection.addSelectionFilter("SketchLines")
+            siDirection.addSelectionFilter("LinearEdges")
+            siDirection.setSelectionLimits(0, 1)
+            siDirection.isVisible = False
+            siDirection.tooltip = "Rack Path"
+            siDirection.tooltipDescription = "Select the line the rack is placed on.\nWill be projected onto the plane.\n\nValid selections are:\n    Sketch Lines\n    Construction Lines\n    BRep Edges"
+
+            siOrigin = tabPosition.children.addSelectionInput("SIOrigin", "Center", "Select Gear Center")
+            siOrigin.addSelectionFilter("ConstructionPoints")
+            siOrigin.addSelectionFilter("SketchPoints")
+            siOrigin.addSelectionFilter("Vertices")
+            siOrigin.addSelectionFilter("CircularEdges")
+            siOrigin.setSelectionLimits(0, 1)
+            siOrigin.tooltip = "Gear Center Point"
+            siOrigin.tooltipDescription = "Select the center point of the gear.\nWill be projected onto the plane.\n\nValid selections:\n    Sketch Points\n    Construction Points\n    BRep Vertices\n    Circular BRep Edges\n"
+
+            bvFlipped = tabPosition.children.addBoolValueInput("BVFlipped", "Flip", True)
+            bvFlipped.isVisible = False
+            bvFlipped.tooltip = "Flips rack direction"
+
+            ddDirection = tabPosition.children.addDropDownCommandInput("DDDirection", "Direction", 0)
+            ddDirection.listItems.add("Front", True, "resources/front")
+            ddDirection.listItems.add("Center", False, "resources/center")
+            ddDirection.listItems.add("Back", False, "resources/back")
+            ddDirection.tooltip = "Direction"
+            ddDirection.tooltipDescription = "Choose what side of the plane the gear is placed on."
+
+            avRotation = tabPosition.children.addAngleValueCommandInput("AVRotation", "Rotation",
+                                                                        adsk.core.ValueInput.createByReal(0))
+            avRotation.isVisible = False
+            avRotation.tooltip = "Rotation"
+            avRotation.tooltipDescription = "Rotates the gear around its axis."
+
+            dvOffsetX = tabPosition.children.addDistanceValueCommandInput("DVOffsetX", "Offset (X)",
+                                                                          adsk.core.ValueInput.createByReal(0))
+            dvOffsetX.setManipulator(
+                adsk.core.Point3D.create(0, 0, 0),
+                adsk.core.Vector3D.create(1, 0, 0)
+            )
+            dvOffsetX.isVisible = False
+            dvOffsetX.tooltip = "Offset along path."
+
+            dvOffsetY = tabPosition.children.addDistanceValueCommandInput("DVOffsetY", "Offset (Y)",
+                                                                          adsk.core.ValueInput.createByReal(0))
+            dvOffsetY.setManipulator(
+                adsk.core.Point3D.create(0, 0, 0),
+                adsk.core.Vector3D.create(0, 1, 0)
+            )
+            dvOffsetY.isVisible = False
+
+            dvOffsetZ = tabPosition.children.addDistanceValueCommandInput("DVOffsetZ", "Offset (Z)",
+                                                                          adsk.core.ValueInput.createByReal(0))
+            dvOffsetZ.setManipulator(
+                adsk.core.Point3D.create(0, 0, 0),
+                adsk.core.Vector3D.create(0, 0, 1)
+            )
+            dvOffsetZ.isVisible = False
+            dvOffsetZ.tooltip = "Offset from plane"
 
             # Properties
             tbProperties = tabProperties.children.addTextBoxCommandInput("TBProperties", "", "", 5, True)
@@ -899,9 +1034,13 @@ class CommandExecuteHandler(adsk.core.CommandEventHandler):
     def notify(self, args):
         try:
             # Saves inputs to dict for persistence
-            preserve_inputs(args.command.commandInputs, pers)
-            generate_gear(args.command.commandInputs).model_gear(
+            preserveInputs(args.command.commandInputs, pers)
+
+            gear = generateGear(args.command.commandInputs).modelGear(
                 adsk.core.Application.get().activeProduct.rootComponent)
+
+            moveGear(gear, args.command.commandInputs)
+
         except:
             print(traceback.format_exc())
 
@@ -916,9 +1055,18 @@ class CommandExecutePreviewHandler(adsk.core.CommandEventHandler):
     def notify(self, args):
         try:
             if (args.command.commandInputs.itemById("BVPreview").value):
-                preserve_inputs(args.command.commandInputs, pers)
-                generate_gear(args.command.commandInputs).model_gear(
-                    adsk.core.Application.get().activeProduct.rootComponent)
+                preserveInputs(args.command.commandInputs, pers)
+
+                global lastInput
+
+                reuseGear = lastInput in ["APITabBar", "SIPlane", "SIOrigin", "SIDirection", "DDDirection",
+                                          "AVRotation", "BVFlipped", "DVOffsetX", "DVOffsetY", "DVOffsetZ"]
+
+                gear = generateGear(args.command.commandInputs).modelGear(
+                    adsk.core.Application.get().activeProduct.rootComponent, reuseGear)
+
+                moveGear(gear, args.command.commandInputs)
+
                 args.isValidResult = True
             else:
                 args.isValidResult = False
@@ -935,8 +1083,8 @@ class CommandValidateInputsEventHandler(adsk.core.ValidateInputsEventHandler):
 
     def notify(self, args):
         try:
-            is_invalid = generate_gear(args.inputs).is_invalid
-            args.areInputsValid = not is_invalid
+            isInvalid = generateGear(args.inputs).isInvalid
+            args.areInputsValid = not isInvalid
         except:
             print(traceback.format_exc())
 
@@ -949,6 +1097,8 @@ class CommandInputChangedHandler(adsk.core.InputChangedEventHandler):
 
     def notify(self, args):
         try:
+            global lastInput
+            lastInput = args.input.id
             # Handles input visibillity based on gear type
             if (args.input.id == "DDType"):
                 gearType = args.input.selectedItem.name
@@ -958,43 +1108,121 @@ class CommandInputChangedHandler(adsk.core.InputChangedEventHandler):
                 args.inputs.itemById("VIDiameter").isVisible = gearType == "Internal Gear"
             # Updates Information
             if (args.inputs.itemById("TabProperties") and args.inputs.itemById("TabProperties").isActive):
-                gear = generate_gear(args.inputs)
+                gear = generateGear(args.inputs)
                 tbProperties = args.inputs.itemById("TBProperties")
                 tbProperties.numRows = len(str(gear).split('\n'))
                 tbProperties.text = str(gear)
-
             # Updates Warning Message
             if (not args.input.id[:2] == "TB"):
-                is_invalid = generate_gear(args.input.parentCommand.commandInputs).is_invalid
-                if (is_invalid):
+                isInvalid = generateGear(args.input.parentCommand.commandInputs).isInvalid
+                if (isInvalid):
                     args.input.parentCommand.commandInputs.itemById(
                         "TBWarning1").formattedText = '<h3><font color="darkred">Error: {0}</font></h3>'.format(
-                        is_invalid)
+                        isInvalid)
                     args.input.parentCommand.commandInputs.itemById(
                         "TBWarning2").formattedText = '<h3><font color="darkred">Error: {0}</font></h3>'.format(
-                        is_invalid)
+                        isInvalid)
                 else:
                     args.input.parentCommand.commandInputs.itemById("TBWarning1").formattedText = ''
                     args.input.parentCommand.commandInputs.itemById("TBWarning2").formattedText = ''
-            ''' WIP 
-            # Resets parameters
-            if(args.input.id == "BVReset"):
-                args.input.parentCommand.commandInputs.itemById("DDStandard").listItems.item(0).isSelected = True
-                args.input.parentCommand.commandInputs.itemById("DDStandard").listItems.item(0).isSelected = True
-                args.input.parentCommand.commandInputs.itemById("VIHelixAngle").value = 0.5235987755982988,
-                args.input.parentCommand.commandInputs.itemById("VIPressureAngle").value = 0.5235987755982988,
-                args.input.parentCommand.commandInputs.itemById("VIModule").value = 0.3,
-                args.input.parentCommand.commandInputs.itemById("ISTeeth").value = 16,
-                args.input.parentCommand.commandInputs.itemById("VIBacklash").value = 0.0,
-                args.input.parentCommand.commandInputs.itemById("VIWidth").value = 1.0,
-                args.input.parentCommand.commandInputs.itemById("VIHeight").value = 0.8,
-                args.input.parentCommand.commandInputs.itemById("VILength").value = 10.0,
-                args.input.parentCommand.commandInputs.itemById("VIDiameter").value = 8.0,
-                args.input.parentCommand.commandInputs.itemById("BVHerringbone").value = False,
-                args.input.parentCommand.commandInputs.itemById("BVPreview").value = False,
-                args.input.parentCommand.commandInputs.itemById("VIAddendum").value = 1,
-                args.input.parentCommand.commandInputs.itemById("VIDedendum").value = 1.25
-            '''
+            # Hides Positioning Manipulators when inactive
+            if (args.input.id == "APITabBar"):
+                if (args.inputs.itemById("TabPosition") and args.inputs.itemById("TabPosition").isActive):
+                    args.input.parentCommand.commandInputs.itemById("SIOrigin").isVisible = True
+                    args.input.parentCommand.commandInputs.itemById("SIPlane").isVisible = True
+                    args.input.parentCommand.commandInputs.itemById("DVOffsetZ").isVisible = True
+                    if (args.input.parentCommand.commandInputs.itemById("DDType").selectedItem.name == "Rack Gear"):
+                        args.input.parentCommand.commandInputs.itemById("SIDirection").isVisible = True
+                        args.input.parentCommand.commandInputs.itemById("DVOffsetX").isVisible = True
+                        args.input.parentCommand.commandInputs.itemById("DVOffsetY").isVisible = True
+                        args.input.parentCommand.commandInputs.itemById("BVFlipped").isVisible = True
+                    else:
+                        args.input.parentCommand.commandInputs.itemById("AVRotation").isVisible = True
+                else:
+
+                    args.input.parentCommand.commandInputs.itemById("SIOrigin").isVisible = False
+                    args.input.parentCommand.commandInputs.itemById("SIDirection").isVisible = False
+                    args.input.parentCommand.commandInputs.itemById("SIPlane").isVisible = False
+                    args.input.parentCommand.commandInputs.itemById("DVOffsetX").isVisible = False
+                    args.input.parentCommand.commandInputs.itemById("DVOffsetY").isVisible = False
+                    args.input.parentCommand.commandInputs.itemById("DVOffsetZ").isVisible = False
+                    args.input.parentCommand.commandInputs.itemById("AVRotation").isVisible = False
+                    args.input.parentCommand.commandInputs.itemById("BVFlipped").isVisible = False
+            # Update manipulators
+            if (args.input.id in ["SIOrigin", "SIDirection", "SIPlane", "AVRotation", "DVOffsetX", "DVOffsetY",
+                                  "DVOffsetZ", "BVFlipped", "DDDirection", "DDType"]):
+                if (args.input.parentCommand.commandInputs.itemById("DDType").selectedItem.name != "Rack Gear"):
+                    mat = regularMoveMatrix(args.input.parentCommand.commandInputs)
+
+                    # Creates a directin vector aligned to relative Z+
+                    d = adsk.core.Vector3D.create(0, 0, 1)
+                    d.transformBy(mat)
+
+                    p = mat.translation
+
+                    # Scales vector by Offset to remove offset from manipulator position
+                    d0 = d.copy()
+                    d0.normalize()
+                    d0.scaleBy(args.input.parentCommand.commandInputs.itemById("DVOffsetZ").value)
+                    p0 = p.copy()
+                    p0.subtract(d0)
+
+                    pln = adsk.core.Plane.create(
+                        adsk.core.Point3D.create(0, 0, 0),
+                        d
+                    )
+
+                    args.input.parentCommand.commandInputs.itemById("DVOffsetZ").setManipulator(p0.asPoint(), d)
+                    args.input.parentCommand.commandInputs.itemById("AVRotation").setManipulator(p.asPoint(),
+                                                                                                 pln.uDirection,
+                                                                                                 pln.vDirection)
+
+                else:
+                    mat = rackMoveMatrix(args.input.parentCommand.commandInputs)
+
+                    # Creates a directin vector aligned to relative xyz
+                    x = adsk.core.Vector3D.create(1, 0, 0)
+                    x.transformBy(mat)
+                    y = adsk.core.Vector3D.create(0, 0, 1)
+                    y.transformBy(mat)
+                    z = adsk.core.Vector3D.create(0, -1, 0)
+                    z.transformBy(mat)
+
+                    p = mat.translation
+
+                    # Flippes x when rack is flipped
+                    xf = x.copy()
+                    if (args.input.parentCommand.commandInputs.itemById("BVFlipped").value):
+                        xf.scaleBy(-1)
+
+                    # Creates scaled direction vectors for position compensation
+                    x0 = xf.copy()
+                    x0.normalize()
+                    x0.scaleBy(args.input.parentCommand.commandInputs.itemById("DVOffsetX").value)
+
+                    y0 = y.copy()
+                    y0.normalize()
+                    y0.scaleBy(args.input.parentCommand.commandInputs.itemById("DVOffsetY").value)
+
+                    z0 = z.copy()
+                    z0.normalize()
+                    z0.scaleBy(args.input.parentCommand.commandInputs.itemById("DVOffsetZ").value)
+
+                    # Compensates position
+                    px = p.copy()
+                    px.subtract(x0)
+
+                    py = p.copy()
+                    py.subtract(y0)
+
+                    pz = p.copy()
+                    pz.subtract(z0)
+
+                    args.input.parentCommand.commandInputs.itemById("DVOffsetX").setManipulator(px.asPoint(), xf)
+                    args.input.parentCommand.commandInputs.itemById("DVOffsetY").setManipulator(py.asPoint(), y)
+                    args.input.parentCommand.commandInputs.itemById("DVOffsetZ").setManipulator(pz.asPoint(), z)
+
+
         except:
             print(traceback.format_exc())
 
@@ -1013,7 +1241,7 @@ class CommandDestroyHandler(adsk.core.CommandEventHandler):
             print(traceback.format_exc())
 
 
-def preserve_inputs(commandInputs, pers):
+def preserveInputs(commandInputs, pers):
     pers['DDType'] = commandInputs.itemById("DDType").selectedItem.name
     pers['DDStandard'] = commandInputs.itemById("DDStandard").selectedItem.name
     pers['VIHelixAngle'] = commandInputs.itemById("VIHelixAngle").value
@@ -1030,13 +1258,13 @@ def preserve_inputs(commandInputs, pers):
     pers['VIDedendum'] = commandInputs.itemById("VIDedendum").value
 
 
-def generate_gear(commandInputs):
+def generateGear(commandInputs):
     gearType = commandInputs.itemById("DDType").selectedItem.name
     standard = commandInputs.itemById("DDStandard").selectedItem.name
 
     if (gearType == "Rack Gear"):
         if (standard == "Normal"):
-            gear = RackGear.create_in_normal_system(
+            gear = RackGear.createInNormalSystem(
                 commandInputs.itemById("VIModule").value,
                 commandInputs.itemById("VIPressureAngle").value,
                 commandInputs.itemById("VIHelixAngle").value,
@@ -1049,7 +1277,7 @@ def generate_gear(commandInputs):
                 commandInputs.itemById("VIDedendum").value
             )
         else:
-            gear = RackGear.create_in_radial_system(
+            gear = RackGear.createInRadialSystem(
                 commandInputs.itemById("VIModule").value,
                 commandInputs.itemById("VIPressureAngle").value,
                 commandInputs.itemById("VIHelixAngle").value,
@@ -1064,7 +1292,7 @@ def generate_gear(commandInputs):
     else:
         if (gearType == "External Gear"):
             if (standard == "Normal"):
-                gear = HelicalGear.create_in_normal_system(
+                gear = HelicalGear.createInNormalSystem(
                     commandInputs.itemById("ISTeeth").value,
                     commandInputs.itemById("VIModule").value,
                     commandInputs.itemById("VIPressureAngle").value,
@@ -1076,7 +1304,7 @@ def generate_gear(commandInputs):
                     commandInputs.itemById("BVHerringbone").value
                 )
             else:
-                gear = HelicalGear.create_in_radial_system(
+                gear = HelicalGear.createInRadialSystem(
                     commandInputs.itemById("ISTeeth").value,
                     commandInputs.itemById("VIModule").value,
                     commandInputs.itemById("VIPressureAngle").value,
@@ -1089,7 +1317,7 @@ def generate_gear(commandInputs):
                 )
         else:
             if (standard == "Normal"):
-                gear = HelicalGear.create_in_normal_system(
+                gear = HelicalGear.createInNormalSystem(
                     commandInputs.itemById("ISTeeth").value,
                     commandInputs.itemById("VIModule").value,
                     commandInputs.itemById("VIPressureAngle").value,
@@ -1102,7 +1330,7 @@ def generate_gear(commandInputs):
                     commandInputs.itemById("VIDiameter").value
                 )
             else:
-                gear = HelicalGear.create_in_radial_system(
+                gear = HelicalGear.createInRadialSystem(
                     commandInputs.itemById("ISTeeth").value,
                     commandInputs.itemById("VIModule").value,
                     commandInputs.itemById("VIPressureAngle").value,
@@ -1117,6 +1345,284 @@ def generate_gear(commandInputs):
     return gear
 
 
+def moveGear(gear, commandInputs):
+    if (commandInputs.itemById("DDType").selectedItem.name != "Rack Gear"):
+        gear.transform = regularMoveMatrix(commandInputs)
+    else:
+        gear.transform = rackMoveMatrix(commandInputs)
+    # Applies the movement in parametric design mode
+    if (adsk.core.Application.get().activeDocument.design.designType):
+        adsk.core.Application.get().activeDocument.design.snapshots.add()
+
+
+def regularMoveMatrix(commandInputs):
+    sideOffset = (0.5 - (commandInputs.itemById("DDDirection").selectedItem.index * 0.5)) * commandInputs.itemById(
+        "VIWidth").value
+
+    if (commandInputs.itemById("SIOrigin").selectionCount):
+        point = commandInputs.itemById("SIOrigin").selection(0).entity
+        pointPrim = getPrimitiveFromSelection(point)
+
+        # Both Plane and Origin selected, regular move
+        if (commandInputs.itemById("SIPlane").selectionCount):
+            plane = commandInputs.itemById("SIPlane").selection(0).entity
+            planePrim = getPrimitiveFromSelection(plane)
+
+        # Just sketch point selected, use sketch plane as plane
+        elif (point.objectType == "adsk::fusion::SketchPoint"):
+            planePrim = adsk.core.Plane.createUsingDirections(
+                point.parentSketch.origin,
+                point.parentSketch.xDirection,
+                point.parentSketch.yDirection
+            )
+
+        # No useable plane selected
+        else:
+            planePrim = adsk.core.Plane.createUsingDirections(
+                pointPrim,
+                adsk.core.Vector3D.create(1, 0, 0),
+                adsk.core.Vector3D.create(0, 1, 0)
+            )
+
+        return moveMatrixPdro(
+            projectPointOnPlane(pointPrim, planePrim),
+            planePrim.normal,
+            commandInputs.itemById("AVRotation").value,
+            commandInputs.itemById("DVOffsetZ").value + sideOffset
+        )
+    else:
+        # No valid selection combination, no move just side & rotation
+        return moveMatrixPdro(
+            adsk.core.Point3D.create(0, 0, 0),
+            adsk.core.Vector3D.create(0, 0, 1),
+            commandInputs.itemById("AVRotation").value,
+            commandInputs.itemById("DVOffsetZ").value + sideOffset
+        )
+
+
+def rackMoveMatrix(commandInputs):
+    sideOffset = (0.5 - (commandInputs.itemById("DDDirection").selectedItem.index * 0.5)) * commandInputs.itemById(
+        "VIWidth").value
+
+    if (commandInputs.itemById("SIDirection").selectionCount):
+        # Line selected
+        line = commandInputs.itemById("SIDirection").selection(0).entity
+        linePrim = getPrimitiveFromSelection(line)
+
+        if (commandInputs.itemById("SIPlane").selectionCount):
+            # Plane selected
+            plane = commandInputs.itemById("SIPlane").selection(0).entity
+            planePrim = getPrimitiveFromSelection(plane)
+        elif (line.objectType == "adsk::fusion::SketchLine"):
+            # No Plane selected, using sketch plane
+            planePrim = adsk.core.Plane.createUsingDirections(
+                line.parentSketch.origin,
+                line.parentSketch.xDirection,
+                line.parentSketch.yDirection
+            )
+        else:
+            # Do no move
+            planePrim = adsk.core.Plane.create(
+                adsk.core.Point3D.create(0, 0, 0),
+                adsk.core.Vector3D.create(0, 0, 1)
+            )
+
+        if (commandInputs.itemById("SIOrigin").selectionCount):
+            # Point selected
+            point = commandInputs.itemById("SIOrigin").selection(0).entity
+            pointPrim = getPrimitiveFromSelection(point)
+
+        elif (line.objectType == "adsk::fusion::SketchLine"):
+            a = line.worldGeometry.startPoint.copy()
+            b = line.worldGeometry.endPoint
+
+            v = a.vectorTo(b)
+            v.scaleBy(0.5)
+
+            a.translateBy(v)
+
+            pointPrim = a
+        else:
+            # Do no move
+            pointPrim = adsk.core.Point3D.create(0, 0, 0)
+
+
+    else:
+        # No valid selection, no move, just offsets
+        linePrim = adsk.core.InfiniteLine3D.create(
+            adsk.core.Point3D.create(0, 0, 0),
+            adsk.core.Vector3D.create(1, 0, 0)
+        )
+        planePrim = adsk.core.Plane.create(
+            adsk.core.Point3D.create(0, 0, 0),
+            adsk.core.Vector3D.create(0, 0, 1)
+        )
+        pointPrim = adsk.core.Point3D.create(0, 0, 0)
+
+    return moveMatrixPxzfxyz(
+        projectPointOnLine(pointPrim, projectLineOnPlane(linePrim, planePrim)),
+        projectVectorOnPlane(linePrim.direction, planePrim),
+        planePrim.normal,
+        commandInputs.itemById("BVFlipped").value,
+        commandInputs.itemById("DVOffsetX").value,
+        commandInputs.itemById("DVOffsetY").value,
+        commandInputs.itemById("DVOffsetZ").value + sideOffset
+    )
+
+
+def moveMatrixPdro(position, direction, rotation, offset):
+    mat = adsk.core.Matrix3D.create()
+
+    p = adsk.core.Plane.create(position, direction)
+
+    mat.setToAlignCoordinateSystems(
+        adsk.core.Point3D.create(0, 0, -offset),
+        adsk.core.Vector3D.create(math.cos(-rotation), math.sin(-rotation), 0),
+        adsk.core.Vector3D.create(-math.sin(-rotation), math.cos(-rotation), 0),
+        adsk.core.Vector3D.create(0, 0, 1),
+        position,
+        p.uDirection,
+        p.vDirection,
+        direction
+    )
+
+    return mat
+
+
+def moveMatrixPxzfxyz(position, x, z, flip, offsetX, offsetY, offsetZ):
+    x.normalize()
+    z.normalize()
+
+    mat = adsk.core.Matrix3D.create()
+
+    # Flip Z so results line up with regular gears
+    z.scaleBy(-1)
+
+    if (flip):
+        x.scaleBy(-1)
+        offsetX *= -1
+
+    p = adsk.core.Plane.createUsingDirections(adsk.core.Point3D.create(0, 0, 0), z, x)
+
+    # Z & Y flipped due to racks beining generated out of plane
+    mat.setToAlignCoordinateSystems(
+        adsk.core.Point3D.create(-offsetX, offsetZ, -offsetY),
+        adsk.core.Vector3D.create(1, 0, 0),
+        adsk.core.Vector3D.create(0, 0, -1),
+        adsk.core.Vector3D.create(0, 1, 0),
+        position,
+        x,
+        p.normal,
+        z
+    )
+
+    return mat
+
+
+def getPrimitiveFromSelection(selection):
+    # Construction Plane
+    if selection.objectType == "adsk::fusion::ConstructionPlane":
+        # TODO: Coordinate in assembly context, world transform still required!
+        return selection.geometry
+
+    # Sketch Profile
+    if selection.objectType == "adsk::fusion::Profile":
+        return adsk.core.Plane.createUsingDirections(
+            selection.parentSketch.origin,
+            selection.parentSketch.xDirection,
+            selection.parentSketch.yDirection
+        )
+
+    # BRepFace
+    if selection.objectType == "adsk::fusion::BRepFace":
+        _, normal = selection.evaluator.getNormalAtPoint(selection.pointOnFace)
+        return adsk.core.Plane.create(
+            selection.pointOnFace,
+            normal
+        )
+
+    # Construction Axis
+    if selection.objectType == "adsk::fusion::ConstructionAxis":
+        # TODO: Coordinate in assembly context, world transform still required!
+        return selection.geometry
+
+    # BRepEdge
+    if selection.objectType == "adsk::fusion::BRepEdge":
+        # Linear edge
+        if (selection.geometry.objectType == "adsk::core::Line3D"):
+            _, tangent = selection.evaluator.getTangent(0)
+            return adsk.core.InfiniteLine3D.create(
+                selection.pointOnEdge,
+                tangent
+            )
+        # Circular edge
+        if (selection.geometry.objectType in ["adsk::core::Circle3D", "adsk::core::Arc3D"]):
+            return selection.geometry.center
+
+    # Sketch Line
+    if selection.objectType == "adsk::fusion::SketchLine":
+        return selection.worldGeometry.asInfiniteLine()
+
+    # Construction Point
+    if selection.objectType == "adsk::fusion::ConstructionPoint":
+        # TODO: Coordinate in assembly context, world transform still required!
+        return selection.geometry
+
+    # Sketch Point
+    if selection.objectType == "adsk::fusion::SketchPoint":
+        return selection.worldGeometry
+
+    # BRepVertex
+    if selection.objectType == "adsk::fusion::BRepVertex":
+        return selection.geometry
+
+
+def projectPointOnPlane(point, plane):
+    originToPoint = plane.origin.vectorTo(point)
+
+    normal = plane.normal.copy()
+    normal.normalize()
+    distPtToPln = normal.dotProduct(originToPoint)
+
+    normal.scaleBy(-distPtToPln)
+
+    ptOnPln = point.copy()
+    ptOnPln.translateBy(normal)
+
+    return ptOnPln
+
+
+def projectVectorOnPlane(vector, plane):
+    normal = plane.normal.copy()
+    normal.normalize()
+    normal.scaleBy(normal.dotProduct(vector))
+
+    vOnPln = vector.copy()
+    vOnPln.subtract(normal)
+
+    return vOnPln
+
+
+def projectLineOnPlane(line, plane):
+    return adsk.core.InfiniteLine3D.create(
+        projectPointOnPlane(line.origin, plane),
+        projectVectorOnPlane(line.direction, plane)
+    )
+
+
+def projectPointOnLine(point, line):
+    tangent = line.direction.copy()
+    tangent.normalize()
+
+    d = line.origin.vectorTo(point).dotProduct(tangent)
+    tangent.scaleBy(d)
+
+    ptOnLn = line.origin.copy()
+    ptOnLn.translateBy(tangent)
+
+    return ptOnLn
+
+
 def run(context):
     try:
         app = adsk.core.Application.get()
@@ -1124,14 +1630,14 @@ def run(context):
 
         commandDefinitions = ui.commandDefinitions
         # check the command exists or not
-        cmdDef = commandDefinitions.itemById(COMMAND_ID)
+        cmdDef = commandDefinitions.itemById(COMMANDID)
         if not cmdDef:
-            cmdDef = commandDefinitions.addButtonDefinition(COMMAND_ID, COMMAND_NAME,
-                                                            COMMAND_TOOLTIP, 'resources')
+            cmdDef = commandDefinitions.addButtonDefinition(COMMANDID, COMMANDNAME,
+                                                            COMMANDTOOLTIP, 'resources')
             cmdDef.tooltip = "Generates external, inrernal & rack gears of any helix angle.\nThis includes regular sput gears as well as worm gears."
             cmdDef.toolClipFilename = 'resources/captions/Gears.png'
         # Adds the commandDefinition to the toolbar
-        for panel in TOOLBAR_PANELS:
+        for panel in TOOLBARPANELS:
             ui.allToolbarPanels.itemById(panel).controls.addCommand(cmdDef)
 
         onCommandCreated = CommandCreatedHandler()
@@ -1147,12 +1653,12 @@ def stop(context):
         ui = app.userInterface
 
         # Removes the commandDefinition from the toolbar
-        for panel in TOOLBAR_PANELS:
-            p = ui.allToolbarPanels.itemById(panel).controls.itemById(COMMAND_ID)
+        for panel in TOOLBARPANELS:
+            p = ui.allToolbarPanels.itemById(panel).controls.itemById(COMMANDID)
             if p:
                 p.deleteMe()
 
         # Deletes the commandDefinition
-        ui.commandDefinitions.itemById(COMMAND_ID).deleteMe()
+        ui.commandDefinitions.itemById(COMMANDID).deleteMe()
     except:
         print(traceback.format_exc())
