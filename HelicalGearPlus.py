@@ -967,9 +967,10 @@ class CommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             siOrigin.addSelectionFilter("ConstructionPoints")
             siOrigin.addSelectionFilter("SketchPoints")
             siOrigin.addSelectionFilter("Vertices")
+            siOrigin.addSelectionFilter("CircularEdges")
             siOrigin.setSelectionLimits(0, 1)
             siOrigin.tooltip = "Gear Center Point"
-            siOrigin.tooltipDescription = "Select the center point of the gear.\nWill be projected onto the plane.\n\nValid selections:\n    Sketch Points\n    Construction Points\n    BRep Vertices\n"
+            siOrigin.tooltipDescription = "Select the center point of the gear.\nWill be projected onto the plane.\n\nValid selections:\n    Sketch Points\n    Construction Points\n    BRep Vertices\n    Circular BRep Edges\n"
 
             bvFlipped = tabPosition.children.addBoolValueInput("BVFlipped", "Flip", True)
             bvFlipped.isVisible = False
@@ -1535,11 +1536,16 @@ def getPrimitiveFromSelection(selection):
 
     # BRepEdge
     if selection.objectType == "adsk::fusion::BRepEdge":
-        _, tangent = selection.evaluator.getTangent(0)
-        return adsk.core.InfiniteLine3D.create(
-            selection.pointOnEdge,
-            tangent
-        )
+        # Linear edge
+        if(selection.geometry.objectType == "adsk::core::Line3D"):
+            _, tangent = selection.evaluator.getTangent(0)
+            return adsk.core.InfiniteLine3D.create(
+                selection.pointOnEdge,
+                tangent
+            )
+        # Circular edge
+        if(selection.geometry.objectType in ["adsk::core::Circle3D", "adsk::core::Arc3D"]):
+            return selection.geometry.center
     
     # Sketch Line
     if selection.objectType == "adsk::fusion::SketchLine":
