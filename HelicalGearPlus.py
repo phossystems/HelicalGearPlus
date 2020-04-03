@@ -67,7 +67,7 @@ class Involute:
         # Determine the angle between the X axis and a line between the origin of the curve
         # and the intersection point between the involute and the pitch diameter circle.
         pitchInvolutePoint = self.InvolutePoint(self.gear.baseDiameter / 2.0, self.gear.pitchDiameter / 2.0,
-                                                  zShift)
+                                                zShift)
         pitchPointAngle = math.atan2(pitchInvolutePoint.y, pitchInvolutePoint.x)
 
         # Rotate the involute so the intersection point lies on the x axis.
@@ -322,7 +322,7 @@ class HelicalGear:
 
     @staticmethod
     def createInNormalSystem(toothCount, normalModule, normalPressureAngle, helixAngle, backlash=0, addendum=1,
-                                dedendum=1.25, width=1, herringbone=False, internalOutsideDiameter=None):
+                             dedendum=1.25, width=1, herringbone=False, internalOutsideDiameter=None):
         toothCount = toothCount if toothCount > 0 else 1
         # normalModule = normalModule if normalModule > 0 else 1e-10
         # normalPressureAngle = normalPressureAngle if 0 <= normalPressureAngle < math.radians(90) else 0
@@ -358,7 +358,7 @@ class HelicalGear:
 
     @staticmethod
     def createInRadialSystem(toothCount, radialModule, radialPressureAngle, helixAngle, backlash=0, addendum=1,
-                                dedendum=1.25, width=1, herringbone=False, internalOutsideDiameter=None):
+                             dedendum=1.25, width=1, herringbone=False, internalOutsideDiameter=None):
         toothCount = toothCount if toothCount > 0 else 1
         radialModule = radialModule if radialModule > 0 else 1e-10
         radialPressureAngle = radialPressureAngle if 0 <= radialPressureAngle < math.radians(90) else 0
@@ -394,8 +394,8 @@ class HelicalGear:
 
     def modelGear(self, parentComponent, sameAsLast=False):
         # Storres a copy of the last gear generated to speed up regeneation of the same gear
-        global lastGear 
-        
+        global lastGear
+
         # The temporaryBRep manager is a tool for creating 3d geometry without the use of features
         # The word temporary referrs to the geometry being created being virtual, but It can easily be converted to actual geometry
         tbm = adsk.fusion.TemporaryBRepManager.get()
@@ -415,15 +415,15 @@ class HelicalGear:
         else:
             baseFeature = None
 
-        if(not (sameAsLast and lastGear)):
+        if (not (sameAsLast and lastGear)):
 
             # Creates sketch and draws tooth profile
             involute = Involute(self)
-            
+
             # Creates profile on z=0 if herringbone and on bottom if not
-            if(not self.herringbone):
-                plane = adsk.core.Plane.create(adsk.core.Point3D.create(0, 0, -self.width/2),
-                                        adsk.core.Vector3D.create(0,0,1))
+            if (not self.herringbone):
+                plane = adsk.core.Plane.create(adsk.core.Point3D.create(0, 0, -self.width / 2),
+                                               adsk.core.Vector3D.create(0, 0, 1))
                 # Creates an object responsible for passing all required data to create a construction plane
                 planeInput = component.constructionPlanes.createInput()
                 # Sets the plane input by plane
@@ -438,7 +438,8 @@ class HelicalGear:
                 for i in range(self.toothCount):
                     involute.draw(sketch, 0, (i / self.toothCount) * 2 * math.pi)
                 # Base Circle
-                sketch.sketchCurves.sketchCircles.addByCenterRadius(adsk.core.Point3D.create(0, 0, 0), self.rootDiameter / 2)
+                sketch.sketchCurves.sketchCircles.addByCenterRadius(adsk.core.Point3D.create(0, 0, 0),
+                                                                    self.rootDiameter / 2)
             else:
                 sketch = component.sketches.add(component.xYConstructionPlane)
                 sketch.isComputeDeferred = True
@@ -447,17 +448,18 @@ class HelicalGear:
                 for i in range(self.toothCount):
                     involute.draw(sketch, 0, (i / self.toothCount) * 2 * math.pi)
                 # Base Circle
-                sketch.sketchCurves.sketchCircles.addByCenterRadius(adsk.core.Point3D.create(0, 0, 0), self.rootDiameter / 2)
+                sketch.sketchCurves.sketchCircles.addByCenterRadius(adsk.core.Point3D.create(0, 0, 0),
+                                                                    self.rootDiameter / 2)
 
             # Creates path line for sweep feature
             if (not self.herringbone):
                 line1 = sketch.sketchCurves.sketchLines.addByTwoPoints(adsk.core.Point3D.create(0, 0, 0),
-                                                                    adsk.core.Point3D.create(0, 0, self.width))
-            else: 
+                                                                       adsk.core.Point3D.create(0, 0, self.width))
+            else:
                 line1 = sketch.sketchCurves.sketchLines.addByTwoPoints(adsk.core.Point3D.create(0, 0, 0),
-                                                                    adsk.core.Point3D.create(0, 0, self.width / 2))
+                                                                       adsk.core.Point3D.create(0, 0, self.width / 2))
                 line2 = sketch.sketchCurves.sketchLines.addByTwoPoints(adsk.core.Point3D.create(0, 0, 0),
-                                                                    adsk.core.Point3D.create(0, 0, -self.width / 2))
+                                                                       adsk.core.Point3D.create(0, 0, -self.width / 2))
 
             # Reactivates sketch computation and puts all profules into an OC              
             sketch.isComputeDeferred = False
@@ -466,10 +468,10 @@ class HelicalGear:
                 profs.add(prof)
 
             # Creates sweeep features
-            if(not self.herringbone):
+            if (not self.herringbone):
                 path1 = component.features.createPath(line1)
                 sweepInput = component.features.sweepFeatures.createInput(profs, path1,
-                                                                        adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
+                                                                          adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
                 sweepInput.twistAngle = adsk.core.ValueInput.createByReal(-self.tFor(self.width))
                 if (baseFeature):
                     sweepInput.targetBaseFeature = baseFeature
@@ -477,7 +479,7 @@ class HelicalGear:
             else:
                 path1 = component.features.createPath(line1)
                 sweepInput = component.features.sweepFeatures.createInput(profs, path1,
-                                                                        adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
+                                                                          adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
                 sweepInput.twistAngle = adsk.core.ValueInput.createByReal(-self.tFor(self.width / 2))
                 if (baseFeature):
                     sweepInput.targetBaseFeature = baseFeature
@@ -485,7 +487,7 @@ class HelicalGear:
 
                 path2 = component.features.createPath(line2)
                 sweepInput = component.features.sweepFeatures.createInput(profs, path2,
-                                                                        adsk.fusion.FeatureOperations.JoinFeatureOperation)
+                                                                          adsk.fusion.FeatureOperations.JoinFeatureOperation)
                 sweepInput.twistAngle = adsk.core.ValueInput.createByReal(self.tFor(self.width / 2))
                 if (baseFeature):
                     sweepInput.targetBaseFeature = baseFeature
@@ -494,9 +496,9 @@ class HelicalGear:
             # "Inverts" internal Gears
             if (self.internalOutsideDiameter):
                 cyl = cylinder = tbm.createCylinderOrCone(adsk.core.Point3D.create(0, 0, -self.width / 2),
-                                                        self.internalOutsideDiameter / 2,
-                                                        adsk.core.Point3D.create(0, 0, self.width / 2),
-                                                        self.internalOutsideDiameter / 2)
+                                                          self.internalOutsideDiameter / 2,
+                                                          adsk.core.Point3D.create(0, 0, self.width / 2),
+                                                          self.internalOutsideDiameter / 2)
                 tbm.booleanOperation(cyl, tbm.copy(gearBody), 0)
                 # Deletes external gear
                 gearBody.deleteMe()
@@ -518,10 +520,10 @@ class HelicalGear:
             pitchDiameterCircle.isFixed = True
 
             # Storres a copy of the newly generated gear    
-      
+
             lastGear = tbm.copy(gearBody)
         else:
-            if(baseFeature):
+            if (baseFeature):
                 component.bRepBodies.add(lastGear, baseFeature)
             else:
                 component.bRepBodies.add(lastGear)
@@ -540,7 +542,7 @@ class RackGear:
 
     @staticmethod
     def createInNormalSystem(normalModule, normalPressureAngle, helixAngle, herringbone, length, width, height,
-                                backlash=0, addendum=1, dedendum=1.25):
+                             backlash=0, addendum=1, dedendum=1.25):
         gear = RackGear()
 
         gear.normalModule = normalModule
@@ -563,7 +565,7 @@ class RackGear:
 
     @staticmethod
     def createInRadialSystem(radialModule, radialPressureAngle, helixAngle, herringbone, length, width, height,
-                                backlash=0, addendum=1, dedendum=1.25):
+                             backlash=0, addendum=1, dedendum=1.25):
         gear = RackGear()
 
         gear.module = radialModule
@@ -683,7 +685,7 @@ class RackGear:
 
     def modelGear(self, parentComponent, sameAsLast=False):
         # Storres a copy of the last gear generated to speed up regeneation of the same gear
-        global lastGear 
+        global lastGear
 
         # Create new component
         occurrence = parentComponent.occurrences.addNewComponent(adsk.core.Matrix3D.create())
@@ -699,7 +701,7 @@ class RackGear:
         else:
             baseFeature = None
 
-        if(not (sameAsLast and lastGear)):
+        if (not (sameAsLast and lastGear)):
 
             teeth = math.ceil(
                 (self.length + 2 * math.tan(abs(self.helixAngle)) * self.width) / (self.normalModule * math.pi))
@@ -775,9 +777,9 @@ class RackGear:
             body = component.features.boundaryFillFeatures.add(boundaryFillInput).bodies.item(0)
             # Creates a box to cut off angled ends
             obb = adsk.core.OrientedBoundingBox3D.create(adsk.core.Point3D.create(0, 0, 0),
-                                                        adsk.core.Vector3D.create(1, 0, 0),
-                                                        adsk.core.Vector3D.create(0, 1, 0),
-                                                        self.length, self.width * 2, (self.height + self.addendum) * 2)
+                                                         adsk.core.Vector3D.create(1, 0, 0),
+                                                         adsk.core.Vector3D.create(0, 1, 0),
+                                                         self.length, self.width * 2, (self.height + self.addendum) * 2)
             box = tbm.createBox(obb)
             tbm.booleanOperation(box, tbm.copy(body), 1)
             if (baseFeature):
@@ -788,7 +790,7 @@ class RackGear:
             # Deletes tooling bodies
             for b in tools:
                 b.deleteMe()
-            
+
             # Adds "pitch diameter" line
             pitchDiameterSketch = component.sketches.add(component.xYConstructionPlane)
             pitchDiameterSketch.name = "Pitch Diameter Line"
@@ -802,7 +804,7 @@ class RackGear:
             # Storres a copy of the newly generated gear            
             lastGear = tbm.copy(gearBody)
         else:
-            if(baseFeature):
+            if (baseFeature):
                 component.bRepBodies.add(lastGear, baseFeature)
             else:
                 component.bRepBodies.add(lastGear)
@@ -983,34 +985,37 @@ class CommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             ddDirection.tooltip = "Direction"
             ddDirection.tooltipDescription = "Choose what side of the plane the gear is placed on."
 
-            avRotation = tabPosition.children.addAngleValueCommandInput("AVRotation", "Rotation", adsk.core.ValueInput.createByReal(0))
+            avRotation = tabPosition.children.addAngleValueCommandInput("AVRotation", "Rotation",
+                                                                        adsk.core.ValueInput.createByReal(0))
             avRotation.isVisible = False
             avRotation.tooltip = "Rotation"
             avRotation.tooltipDescription = "Rotates the gear around its axis."
 
-            dvOffsetX = tabPosition.children.addDistanceValueCommandInput("DVOffsetX", "Offset (X)",adsk.core.ValueInput.createByReal(0))
+            dvOffsetX = tabPosition.children.addDistanceValueCommandInput("DVOffsetX", "Offset (X)",
+                                                                          adsk.core.ValueInput.createByReal(0))
             dvOffsetX.setManipulator(
-                adsk.core.Point3D.create(0,0,0),
-                adsk.core.Vector3D.create(1,0,0)
+                adsk.core.Point3D.create(0, 0, 0),
+                adsk.core.Vector3D.create(1, 0, 0)
             )
             dvOffsetX.isVisible = False
             dvOffsetX.tooltip = "Offset along path."
 
-            dvOffsetY = tabPosition.children.addDistanceValueCommandInput("DVOffsetY", "Offset (Y)",adsk.core.ValueInput.createByReal(0))
+            dvOffsetY = tabPosition.children.addDistanceValueCommandInput("DVOffsetY", "Offset (Y)",
+                                                                          adsk.core.ValueInput.createByReal(0))
             dvOffsetY.setManipulator(
-                adsk.core.Point3D.create(0,0,0),
-                adsk.core.Vector3D.create(0,1,0)
+                adsk.core.Point3D.create(0, 0, 0),
+                adsk.core.Vector3D.create(0, 1, 0)
             )
             dvOffsetY.isVisible = False
 
-            dvOffsetZ = tabPosition.children.addDistanceValueCommandInput("DVOffsetZ", "Offset (Z)",adsk.core.ValueInput.createByReal(0))
+            dvOffsetZ = tabPosition.children.addDistanceValueCommandInput("DVOffsetZ", "Offset (Z)",
+                                                                          adsk.core.ValueInput.createByReal(0))
             dvOffsetZ.setManipulator(
-                adsk.core.Point3D.create(0,0,0),
-                adsk.core.Vector3D.create(0,0,1)
+                adsk.core.Point3D.create(0, 0, 0),
+                adsk.core.Vector3D.create(0, 0, 1)
             )
             dvOffsetZ.isVisible = False
             dvOffsetZ.tooltip = "Offset from plane"
-
 
             # Properties
             tbProperties = tabProperties.children.addTextBoxCommandInput("TBProperties", "", "", 5, True)
@@ -1030,8 +1035,9 @@ class CommandExecuteHandler(adsk.core.CommandEventHandler):
             # Saves inputs to dict for persistence
             preserveInputs(args.command.commandInputs, pers)
 
-            gear = generateGear(args.command.commandInputs).modelGear(adsk.core.Application.get().activeProduct.rootComponent)
-                
+            gear = generateGear(args.command.commandInputs).modelGear(
+                adsk.core.Application.get().activeProduct.rootComponent)
+
             moveGear(gear, args.command.commandInputs)
 
         except:
@@ -1052,12 +1058,14 @@ class CommandExecutePreviewHandler(adsk.core.CommandEventHandler):
 
                 global lastInput
 
-                reuseGear = lastInput  in ["APITabBar", "SIPlane", "SIOrigin", "SIDirection", "DDDirection", "AVRotation","BVFlipped", "DVOffsetX", "DVOffsetY", "DVOffsetZ"]
-                
-                gear = generateGear(args.command.commandInputs).modelGear(adsk.core.Application.get().activeProduct.rootComponent, reuseGear)
-                
+                reuseGear = lastInput in ["APITabBar", "SIPlane", "SIOrigin", "SIDirection", "DDDirection",
+                                          "AVRotation", "BVFlipped", "DVOffsetX", "DVOffsetY", "DVOffsetZ"]
+
+                gear = generateGear(args.command.commandInputs).modelGear(
+                    adsk.core.Application.get().activeProduct.rootComponent, reuseGear)
+
                 moveGear(gear, args.command.commandInputs)
-                
+
                 args.isValidResult = True
             else:
                 args.isValidResult = False
@@ -1117,12 +1125,12 @@ class CommandInputChangedHandler(adsk.core.InputChangedEventHandler):
                     args.input.parentCommand.commandInputs.itemById("TBWarning1").formattedText = ''
                     args.input.parentCommand.commandInputs.itemById("TBWarning2").formattedText = ''
             # Hides Positioning Manipulators when inactive
-            if(args.input.id == "APITabBar"):
+            if (args.input.id == "APITabBar"):
                 if (args.inputs.itemById("TabPosition") and args.inputs.itemById("TabPosition").isActive):
                     args.input.parentCommand.commandInputs.itemById("SIOrigin").isVisible = True
                     args.input.parentCommand.commandInputs.itemById("SIPlane").isVisible = True
                     args.input.parentCommand.commandInputs.itemById("DVOffsetZ").isVisible = True
-                    if(args.input.parentCommand.commandInputs.itemById("DDType").selectedItem.name == "Rack Gear"):
+                    if (args.input.parentCommand.commandInputs.itemById("DDType").selectedItem.name == "Rack Gear"):
                         args.input.parentCommand.commandInputs.itemById("SIDirection").isVisible = True
                         args.input.parentCommand.commandInputs.itemById("DVOffsetX").isVisible = True
                         args.input.parentCommand.commandInputs.itemById("DVOffsetY").isVisible = True
@@ -1140,12 +1148,13 @@ class CommandInputChangedHandler(adsk.core.InputChangedEventHandler):
                     args.input.parentCommand.commandInputs.itemById("AVRotation").isVisible = False
                     args.input.parentCommand.commandInputs.itemById("BVFlipped").isVisible = False
             # Update manipulators
-            if(args.input.id in ["SIOrigin", "SIDirection", "SIPlane", "AVRotation", "DVOffsetX", "DVOffsetY", "DVOffsetZ", "BVFlipped", "DDDirection", "DDType"]):
-                if(args.input.parentCommand.commandInputs.itemById("DDType").selectedItem.name != "Rack Gear"):
+            if (args.input.id in ["SIOrigin", "SIDirection", "SIPlane", "AVRotation", "DVOffsetX", "DVOffsetY",
+                                  "DVOffsetZ", "BVFlipped", "DDDirection", "DDType"]):
+                if (args.input.parentCommand.commandInputs.itemById("DDType").selectedItem.name != "Rack Gear"):
                     mat = regularMoveMatrix(args.input.parentCommand.commandInputs)
 
                     # Creates a directin vector aligned to relative Z+
-                    d = adsk.core.Vector3D.create(0,0,1)
+                    d = adsk.core.Vector3D.create(0, 0, 1)
                     d.transformBy(mat)
 
                     p = mat.translation
@@ -1158,29 +1167,31 @@ class CommandInputChangedHandler(adsk.core.InputChangedEventHandler):
                     p0.subtract(d0)
 
                     pln = adsk.core.Plane.create(
-                        adsk.core.Point3D.create(0,0,0),
+                        adsk.core.Point3D.create(0, 0, 0),
                         d
                     )
-                    
-                    args.input.parentCommand.commandInputs.itemById("DVOffsetZ").setManipulator(p0.asPoint(),d)
-                    args.input.parentCommand.commandInputs.itemById("AVRotation").setManipulator(p.asPoint(), pln.uDirection, pln.vDirection)
+
+                    args.input.parentCommand.commandInputs.itemById("DVOffsetZ").setManipulator(p0.asPoint(), d)
+                    args.input.parentCommand.commandInputs.itemById("AVRotation").setManipulator(p.asPoint(),
+                                                                                                 pln.uDirection,
+                                                                                                 pln.vDirection)
 
                 else:
                     mat = rackMoveMatrix(args.input.parentCommand.commandInputs)
 
                     # Creates a directin vector aligned to relative xyz
-                    x = adsk.core.Vector3D.create(1,0,0)
+                    x = adsk.core.Vector3D.create(1, 0, 0)
                     x.transformBy(mat)
-                    y = adsk.core.Vector3D.create(0,0,1)
+                    y = adsk.core.Vector3D.create(0, 0, 1)
                     y.transformBy(mat)
-                    z = adsk.core.Vector3D.create(0,-1,0)
+                    z = adsk.core.Vector3D.create(0, -1, 0)
                     z.transformBy(mat)
 
                     p = mat.translation
 
                     # Flippes x when rack is flipped
                     xf = x.copy()
-                    if(args.input.parentCommand.commandInputs.itemById("BVFlipped").value):
+                    if (args.input.parentCommand.commandInputs.itemById("BVFlipped").value):
                         xf.scaleBy(-1)
 
                     # Creates scaled direction vectors for position compensation
@@ -1206,10 +1217,10 @@ class CommandInputChangedHandler(adsk.core.InputChangedEventHandler):
                     pz = p.copy()
                     pz.subtract(z0)
 
-                    args.input.parentCommand.commandInputs.itemById("DVOffsetX").setManipulator(px.asPoint(),xf)
-                    args.input.parentCommand.commandInputs.itemById("DVOffsetY").setManipulator(py.asPoint(),y)
-                    args.input.parentCommand.commandInputs.itemById("DVOffsetZ").setManipulator(pz.asPoint(),z)
-                
+                    args.input.parentCommand.commandInputs.itemById("DVOffsetX").setManipulator(px.asPoint(), xf)
+                    args.input.parentCommand.commandInputs.itemById("DVOffsetY").setManipulator(py.asPoint(), y)
+                    args.input.parentCommand.commandInputs.itemById("DVOffsetZ").setManipulator(pz.asPoint(), z)
+
 
         except:
             print(traceback.format_exc())
@@ -1334,30 +1345,30 @@ def generateGear(commandInputs):
 
 
 def moveGear(gear, commandInputs):
-    if(commandInputs.itemById("DDType").selectedItem.name != "Rack Gear"):
+    if (commandInputs.itemById("DDType").selectedItem.name != "Rack Gear"):
         gear.transform = regularMoveMatrix(commandInputs)
     else:
         gear.transform = rackMoveMatrix(commandInputs)
     # Applies the movement in parametric design mode
     if (adsk.core.Application.get().activeDocument.design.designType):
         adsk.core.Application.get().activeDocument.design.snapshots.add()
-    
+
 
 def regularMoveMatrix(commandInputs):
+    sideOffset = (0.5 - (commandInputs.itemById("DDDirection").selectedItem.index * 0.5)) * commandInputs.itemById(
+        "VIWidth").value
 
-    sideOffset = (0.5 - (commandInputs.itemById("DDDirection").selectedItem.index * 0.5)) * commandInputs.itemById("VIWidth").value
-
-    if(commandInputs.itemById("SIOrigin").selectionCount):
+    if (commandInputs.itemById("SIOrigin").selectionCount):
         point = commandInputs.itemById("SIOrigin").selection(0).entity
         pointPrim = getPrimitiveFromSelection(point)
 
         # Both Plane and Origin selected, regular move
-        if(commandInputs.itemById("SIPlane").selectionCount):
+        if (commandInputs.itemById("SIPlane").selectionCount):
             plane = commandInputs.itemById("SIPlane").selection(0).entity
             planePrim = getPrimitiveFromSelection(plane)
 
         # Just sketch point selected, use sketch plane as plane
-        elif(point.objectType == "adsk::fusion::SketchPoint"):
+        elif (point.objectType == "adsk::fusion::SketchPoint"):
             planePrim = adsk.core.Plane.createUsingDirections(
                 point.parentSketch.origin,
                 point.parentSketch.xDirection,
@@ -1368,10 +1379,10 @@ def regularMoveMatrix(commandInputs):
         else:
             planePrim = adsk.core.Plane.createUsingDirections(
                 pointPrim,
-                adsk.core.Vector3D.create(1,0,0),
-                adsk.core.Vector3D.create(0,1,0)
+                adsk.core.Vector3D.create(1, 0, 0),
+                adsk.core.Vector3D.create(0, 1, 0)
             )
-            
+
         return moveMatrixPdro(
             projectPointOnPlane(pointPrim, planePrim),
             planePrim.normal,
@@ -1381,26 +1392,27 @@ def regularMoveMatrix(commandInputs):
     else:
         # No valid selection combination, no move just side & rotation
         return moveMatrixPdro(
-            adsk.core.Point3D.create(0,0,0),
-            adsk.core.Vector3D.create(0,0,1),
+            adsk.core.Point3D.create(0, 0, 0),
+            adsk.core.Vector3D.create(0, 0, 1),
             commandInputs.itemById("AVRotation").value,
             commandInputs.itemById("DVOffsetZ").value + sideOffset
         )
 
 
 def rackMoveMatrix(commandInputs):
-    sideOffset = (0.5 - (commandInputs.itemById("DDDirection").selectedItem.index * 0.5)) * commandInputs.itemById("VIWidth").value
+    sideOffset = (0.5 - (commandInputs.itemById("DDDirection").selectedItem.index * 0.5)) * commandInputs.itemById(
+        "VIWidth").value
 
-    if(commandInputs.itemById("SIDirection").selectionCount):
+    if (commandInputs.itemById("SIDirection").selectionCount):
         # Line selected
         line = commandInputs.itemById("SIDirection").selection(0).entity
         linePrim = getPrimitiveFromSelection(line)
 
-        if(commandInputs.itemById("SIPlane").selectionCount):
+        if (commandInputs.itemById("SIPlane").selectionCount):
             # Plane selected
             plane = commandInputs.itemById("SIPlane").selection(0).entity
             planePrim = getPrimitiveFromSelection(plane)
-        elif(line.objectType == "adsk::fusion::SketchLine"):
+        elif (line.objectType == "adsk::fusion::SketchLine"):
             # No Plane selected, using sketch plane
             planePrim = adsk.core.Plane.createUsingDirections(
                 line.parentSketch.origin,
@@ -1410,16 +1422,16 @@ def rackMoveMatrix(commandInputs):
         else:
             # Do no move
             planePrim = adsk.core.Plane.create(
-                adsk.core.Point3D.create(0,0,0),
-                adsk.core.Vector3D.create(0,0,1)
+                adsk.core.Point3D.create(0, 0, 0),
+                adsk.core.Vector3D.create(0, 0, 1)
             )
 
-        if(commandInputs.itemById("SIOrigin").selectionCount):
+        if (commandInputs.itemById("SIOrigin").selectionCount):
             # Point selected
             point = commandInputs.itemById("SIOrigin").selection(0).entity
             pointPrim = getPrimitiveFromSelection(point)
 
-        elif(line.objectType == "adsk::fusion::SketchLine"):
+        elif (line.objectType == "adsk::fusion::SketchLine"):
             a = line.worldGeometry.startPoint.copy()
             b = line.worldGeometry.endPoint
 
@@ -1431,22 +1443,21 @@ def rackMoveMatrix(commandInputs):
             pointPrim = a
         else:
             # Do no move
-            pointPrim = adsk.core.Point3D.create(0,0,0)
-        
+            pointPrim = adsk.core.Point3D.create(0, 0, 0)
+
 
     else:
-         # No valid selection, no move, just offsets
+        # No valid selection, no move, just offsets
         linePrim = adsk.core.InfiniteLine3D.create(
-            adsk.core.Point3D.create(0,0,0),
-            adsk.core.Vector3D.create(1,0,0)
+            adsk.core.Point3D.create(0, 0, 0),
+            adsk.core.Vector3D.create(1, 0, 0)
         )
         planePrim = adsk.core.Plane.create(
-            adsk.core.Point3D.create(0,0,0),
-            adsk.core.Vector3D.create(0,0,1)
+            adsk.core.Point3D.create(0, 0, 0),
+            adsk.core.Vector3D.create(0, 0, 1)
         )
-        pointPrim = adsk.core.Point3D.create(0,0,0)
+        pointPrim = adsk.core.Point3D.create(0, 0, 0)
 
-   
     return moveMatrixPxzfxyz(
         projectPointOnLine(pointPrim, projectLineOnPlane(linePrim, planePrim)),
         projectVectorOnPlane(linePrim.direction, planePrim),
@@ -1456,7 +1467,7 @@ def rackMoveMatrix(commandInputs):
         commandInputs.itemById("DVOffsetY").value,
         commandInputs.itemById("DVOffsetZ").value + sideOffset
     )
-    
+
 
 def moveMatrixPdro(position, direction, rotation, offset):
     mat = adsk.core.Matrix3D.create()
@@ -1483,14 +1494,14 @@ def moveMatrixPxzfxyz(position, x, z, flip, offsetX, offsetY, offsetZ):
 
     mat = adsk.core.Matrix3D.create()
 
-    #Flip Z so results line up with regular gears
+    # Flip Z so results line up with regular gears
     z.scaleBy(-1)
 
-    if(flip):
+    if (flip):
         x.scaleBy(-1)
         offsetX *= -1
 
-    p = adsk.core.Plane.createUsingDirections(adsk.core.Point3D.create(0,0,0),z,x)
+    p = adsk.core.Plane.createUsingDirections(adsk.core.Point3D.create(0, 0, 0), z, x)
 
     # Z & Y flipped due to racks beining generated out of plane
     mat.setToAlignCoordinateSystems(
@@ -1537,20 +1548,20 @@ def getPrimitiveFromSelection(selection):
     # BRepEdge
     if selection.objectType == "adsk::fusion::BRepEdge":
         # Linear edge
-        if(selection.geometry.objectType == "adsk::core::Line3D"):
+        if (selection.geometry.objectType == "adsk::core::Line3D"):
             _, tangent = selection.evaluator.getTangent(0)
             return adsk.core.InfiniteLine3D.create(
                 selection.pointOnEdge,
                 tangent
             )
         # Circular edge
-        if(selection.geometry.objectType in ["adsk::core::Circle3D", "adsk::core::Arc3D"]):
+        if (selection.geometry.objectType in ["adsk::core::Circle3D", "adsk::core::Arc3D"]):
             return selection.geometry.center
-    
+
     # Sketch Line
     if selection.objectType == "adsk::fusion::SketchLine":
         return selection.worldGeometry.asInfiniteLine()
-    
+
     # Construction Point
     if selection.objectType == "adsk::fusion::ConstructionPoint":
         # TODO: Coordinate in assembly context, world transform still required!
@@ -1564,7 +1575,7 @@ def getPrimitiveFromSelection(selection):
     if selection.objectType == "adsk::fusion::BRepVertex":
         return selection.geometry
 
-    
+
 def projectPointOnPlane(point, plane):
     originToPoint = plane.origin.vectorTo(point)
 
@@ -1581,14 +1592,13 @@ def projectPointOnPlane(point, plane):
 
 
 def projectVectorOnPlane(vector, plane):
-
     normal = plane.normal.copy()
     normal.normalize()
     normal.scaleBy(normal.dotProduct(vector))
 
     vOnPln = vector.copy()
     vOnPln.subtract(normal)
-    
+
     return vOnPln
 
 
@@ -1600,7 +1610,6 @@ def projectLineOnPlane(line, plane):
 
 
 def projectPointOnLine(point, line):
-
     tangent = line.direction.copy()
     tangent.normalize()
 
