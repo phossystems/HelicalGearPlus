@@ -384,8 +384,8 @@ class HelicalGear:
         gear.pressureAngle = radialPressureAngle
         gear.pitchDiameter = gear.module * gear.toothCount
         gear.baseDiameter = gear.pitchDiameter * math.cos(gear.pressureAngle)
-        gear.addendum = gear.module
-        gear.wholeDepth = 2.25 * gear.module
+        gear.addendum = addendum * gear.normalModule
+        gear.wholeDepth = (addendum + dedendum) * gear.normalModule
         gear.outsideDiameter = gear.pitchDiameter + 2 * gear.addendum
         gear.rootDiameter = gear.outsideDiameter - 2 * gear.wholeDepth
         gear.circularPitch = gear.module * math.pi
