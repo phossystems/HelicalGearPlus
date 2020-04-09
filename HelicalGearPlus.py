@@ -952,7 +952,7 @@ class CommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             siPlane = tabPosition.children.addSelectionInput("SIPlane", "Plane", "Select Gear Plane")
             siPlane.addSelectionFilter("ConstructionPlanes")
             siPlane.addSelectionFilter("Profiles")
-            siPlane.addSelectionFilter("Faces")
+            siPlane.addSelectionFilter("PlanarFaces")
             siPlane.setSelectionLimits(0, 1)
             siPlane.tooltip = "Gear Plane"
             siPlane.tooltipDescription = "Select the plane the gear will be placed on.\n\nValid selections are:\n    Sketch Profiles\n    Construction Planes\n    BRep Faces"
