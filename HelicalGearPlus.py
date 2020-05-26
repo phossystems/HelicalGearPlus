@@ -8,6 +8,14 @@
 # Parts (mostly helical gear calculatiom) was taken from Ross Korsky's Helical gear generator
 # Parts (mostly some of the Involute code) was taken from AutoDesks' Fusion 360 SpurGear sample script.
 # The primary source used to produce this add-in was http://qtcgears.com/tools/catalogs/PDF_Q420/Tech.pdf
+#
+# other sources used :
+#   https://www.tec-science.com/mechanical-power-transmission/involute-gear/geometry-of-involute-gears/
+#   https://www.tec-science.com/mechanical-power-transmission/involute-gear/calculation-of-involute-gears/
+#   https://www.tec-science.com/mechanical-power-transmission/involute-gear/profile-shift/
+#   https://www.tec-science.com/mechanical-power-transmission/involute-gear/meshing-line-action-contact-pitch-circle-law/
+#   https://www.tec-science.com/mechanical-power-transmission/involute-gear/undercut/
+#   https://www.tec-science.com/mechanical-power-transmission/involute-gear/rack-meshing/
 
 import adsk.core, adsk.fusion, traceback
 import math
@@ -40,7 +48,9 @@ pers = {
     'BVHerringbone': False,
     'BVPreview': False,
     'VIAddendum': 1,
-    'VIDedendum': 1.25}
+    'VIDedendum': 1.25,
+    'VIShift': 0.0,
+    'BVNoUnderCut': False}
 
 
 class Involute:
@@ -71,7 +81,10 @@ class Involute:
         pitchPointAngle = math.atan2(pitchInvolutePoint.y, pitchInvolutePoint.x)
 
         # Rotate the involute so the intersection point lies on the x axis.
-        rotateAngle = -((self.gear.toothArcAngle / 4) + pitchPointAngle - (self.gear.backlashAngle / 4))
+        # add half of the profile shift 
+        halfShiftAngle = self.gear.profileShiftCoefficient * math.tan(self.gear.pressureAngle)
+
+        rotateAngle = -((self.gear.toothArcAngle / 4) + pitchPointAngle - (self.gear.backlashAngle / 4) + halfShiftAngle/2)
         cosAngle = math.cos(rotateAngle)
         sinAngle = math.sin(rotateAngle)
         for i in range(0, involutePointCount):
@@ -230,11 +243,6 @@ class HelicalGear:
         return math.tan(self.tipPressureAngle) - self.tipPressureAngle
 
     @property
-    def profileShiftCoefficient(self):
-        """Profile shift coefficient without undercut."""
-        return 1 - (self.toothCount / 2) * math.pow(math.sin(self.pressureAngle), 2)
-
-    @property
     def topLandAngle(self):
         """Top land is the (sometimes flat) surface of the top of a gear tooth.
         DOES NOT APPEAR TO PRODUCE THE CORRECT VALUE."""
@@ -251,7 +259,7 @@ class HelicalGear:
     @property
     def critcalVirtualToothCount(self):
         q = math.pow(math.sin(self.normalPressureAngle), 2)
-        return 2 / q if q != 0 else float('inf')
+        return 2*(1 - self.profileShiftCoefficient) / q if q != 0 else float('inf')
 
     @property
     def isInvalid(self):
@@ -309,6 +317,7 @@ class HelicalGear:
         str += 'base diameter.............:  {0:.3f} mm\n'.format(self.baseDiameter * 10)
         str += 'pitch diameter............:  {0:.3f} mm\n'.format(self.pitchDiameter * 10)
         str += 'outside diameter.........:  {0:.3f} mm\n'.format(self.outsideDiameter * 10)
+        str += 'profile shift coefficient: {0:.3f} \n'.format(self.profileShiftCoefficient)
         str += '\n'
         str += 'module.......................:  {0:.3f} mm\n'.format(self.module * 10)
         str += 'normal module...........:  {0:.3f} mm\n'.format(self.normalModule * 10)
@@ -322,7 +331,7 @@ class HelicalGear:
 
     @staticmethod
     def createInNormalSystem(toothCount, normalModule, normalPressureAngle, helixAngle, backlash=0, addendum=1,
-                             dedendum=1.25, width=1, herringbone=False, internalOutsideDiameter=None):
+                             dedendum=1.25, profileshift=0, width=1, herringbone=False, internalOutsideDiameter=None):
         toothCount = toothCount if toothCount > 0 else 1
         # normalModule = normalModule if normalModule > 0 else 1e-10
         # normalPressureAngle = normalPressureAngle if 0 <= normalPressureAngle < math.radians(90) else 0
@@ -334,6 +343,7 @@ class HelicalGear:
         gear.toothCount = toothCount
         gear.width = width
         gear.herringbone = herringbone
+        gear.profileShiftCoefficient = profileshift
         gear.internalOutsideDiameter = internalOutsideDiameter
 
         gear.normalModule = normalModule
@@ -348,7 +358,7 @@ class HelicalGear:
         gear.pressureAngle = math.atan2(math.tan(gear.normalPressureAngle), cosHelixAngle)
         gear.pitchDiameter = gear.module * gear.toothCount
         gear.baseDiameter = gear.pitchDiameter * math.cos(gear.pressureAngle)
-        gear.addendum = addendum * gear.normalModule
+        gear.addendum = ( addendum  + profileshift ) * gear.normalModule
         gear.wholeDepth = (addendum + dedendum) * gear.normalModule
         gear.outsideDiameter = gear.pitchDiameter + 2 * gear.addendum
         gear.rootDiameter = gear.outsideDiameter - 2 * gear.wholeDepth
@@ -358,7 +368,7 @@ class HelicalGear:
 
     @staticmethod
     def createInRadialSystem(toothCount, radialModule, radialPressureAngle, helixAngle, backlash=0, addendum=1,
-                             dedendum=1.25, width=1, herringbone=False, internalOutsideDiameter=None):
+                             dedendum=1.25, profileshift=0, width=1, herringbone=False, internalOutsideDiameter=None):
         toothCount = toothCount if toothCount > 0 else 1
         radialModule = radialModule if radialModule > 0 else 1e-10
         radialPressureAngle = radialPressureAngle if 0 <= radialPressureAngle < math.radians(90) else 0
@@ -370,6 +380,7 @@ class HelicalGear:
         gear.toothCount = toothCount
         gear.width = width
         gear.herringbone = herringbone
+        gear.profileShiftCoefficient = profileshift
         gear.internalOutsideDiameter = internalOutsideDiameter
 
         gear.normalModule = radialModule * math.cos(gear.helixAngle)
@@ -384,8 +395,25 @@ class HelicalGear:
         gear.pressureAngle = radialPressureAngle
         gear.pitchDiameter = gear.module * gear.toothCount
         gear.baseDiameter = gear.pitchDiameter * math.cos(gear.pressureAngle)
-        gear.addendum = addendum * gear.normalModule
-        gear.wholeDepth = (addendum + dedendum) * gear.normalModule
+        
+        # fixed addendum to 1 instead of taking the value of the UI
+        # fixed dedendum to 1.25 instead of taking the value of the UI
+        #   the clearance is set to 0.25 while 0.167 is sufficient
+        #
+        #  https://www.tec-science.com/mechanical-power-transmission/involute-gear/geometry-of-involute-gears/
+        #  addendumdiameter = pitchdiameter + 2 * module
+        #  dedendumdiameter = pitchdiameter - 2 * module - 2 * clearance
+        #  wholedepth = addendum + dedendum + clearance = 2 * module + clearance 
+        #
+        #  with profile shift coeff x
+        #
+        #  addendumdiameter = module * ( toothcount + 2x + 2)
+        #  dedendumdiameter = module * ( toothcount + 2x - 2) - 2 * clearance
+        #  wholedepth  does not change by a profile shift
+        #  wholedepth = (addendumdiameter - dedendumdiameter) / 2 = 2 * module + clearnce
+
+        gear.addendum = ( addendum  + profileshift ) * gear.module
+        gear.wholeDepth = (addendum + dedendum) * gear.module
         gear.outsideDiameter = gear.pitchDiameter + 2 * gear.addendum
         gear.rootDiameter = gear.outsideDiameter - 2 * gear.wholeDepth
         gear.circularPitch = gear.module * math.pi
@@ -402,12 +430,20 @@ class HelicalGear:
         # Create new component
         occurrence = parentComponent.occurrences.addNewComponent(adsk.core.Matrix3D.create())
         component = occurrence.component
-        component.name = 'Healical Gear ({0}{1}@{2:.2f} m={3})'.format(
-            self.toothCount,
-            'L' if self.helixAngle < 0 else 'R',
-            abs(math.degrees(self.helixAngle)),
-            round(self.normalModule * 10, 4))
-
+        if (self.profileShiftCoefficient != 0 ):
+            component.name = 'Healical Gear ({0}{1}@{2:.2f} m={3} x={4:.2f})'.format(
+                self.toothCount,
+                'L' if self.helixAngle < 0 else 'R',
+                abs(math.degrees(self.helixAngle)),
+                round(self.normalModule * 10, 4),
+                self.profileShiftCoefficient)
+        else:
+            component.name = 'Healical Gear ({0}{1}@{2:.2f} m={3})'.format(
+                self.toothCount,
+                'L' if self.helixAngle < 0 else 'R',
+                abs(math.degrees(self.helixAngle)),
+                round(self.normalModule * 10, 4))
+        
         # Creates BaseFeature if DesignType is parametric 
         if (parentComponent.parentDesign.designType):
             baseFeature = component.features.baseFeatures.add()
@@ -808,8 +844,7 @@ class RackGear:
         )
         pitchDiameterLine.isFixed = True
         pitchDiameterLine.isConstruction = True
-
-
+        
         if (baseFeature):
             baseFeature.finishEdit()
 
@@ -861,7 +896,7 @@ class CommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             tabAdvanced = inputs.addTabCommandInput("TabAdvanced", "Advanced")
             tabPosition = inputs.addTabCommandInput("TabPosition", "Position")
             tabProperties = inputs.addTabCommandInput("TabProperties", "Info")
-
+            
             # Setting command Inputs
             ddType = tabSettings.children.addDropDownCommandInput("DDType", "Type", 0)
             ddType.listItems.add("External Gear", pers['DDType'] == "External Gear", "resources/external")
@@ -946,13 +981,23 @@ class CommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             viDedendum.tooltip = "Dedendum"
             viDedendum.tooltipDescription = "Represents the factor that the root diameter is below the pitch diameter."
 
+            viShift = tabAdvanced.children.addValueInput("VIShift", "Profile Shift", "",
+                                                            adsk.core.ValueInput.createByReal(pers['VIShift']))
+            viShift.tooltip = "Profile Shift"
+            viShift.tooltipDescription = "Represents the profile shift factor."
+            
+
+            bvNoUnderCut = tabAdvanced.children.addBoolValueInput("BVNoUnderCut", "NoUnderCut", True, "", pers['BVNoUnderCut'])
+            bvNoUnderCut.tooltip = "No Under Cut"
+            bvNoUnderCut.tooltipDescription = "Calculates the profile shift coefficient to avoid under cut."
+            
             tbWarning2 = tabAdvanced.children.addTextBoxCommandInput("TBWarning2", "", '', 2, True)
 
             # Position
             siPlane = tabPosition.children.addSelectionInput("SIPlane", "Plane", "Select Gear Plane")
             siPlane.addSelectionFilter("ConstructionPlanes")
             siPlane.addSelectionFilter("Profiles")
-            siPlane.addSelectionFilter("PlanarFaces")
+            siPlane.addSelectionFilter("Faces")
             siPlane.setSelectionLimits(0, 1)
             siPlane.tooltip = "Gear Plane"
             siPlane.tooltipDescription = "Select the plane the gear will be placed on.\n\nValid selections are:\n    Sketch Profiles\n    Construction Planes\n    BRep Faces"
@@ -1106,6 +1151,20 @@ class CommandInputChangedHandler(adsk.core.InputChangedEventHandler):
                 args.inputs.itemById("VIHeight").isVisible = gearType == "Rack Gear"
                 args.inputs.itemById("VILength").isVisible = gearType == "Rack Gear"
                 args.inputs.itemById("VIDiameter").isVisible = gearType == "Internal Gear"
+                args.input.parentCommand.commandInputs.itemById("VIShift").isVisible = gearType != "Rack Gear"
+                args.input.parentCommand.commandInputs.itemById("BVNoUnderCut").isVisible = gearType != "Rack Gear"
+            # Update profile shift when NoUnderCut selected
+            if (args.input.id == "BVNoUnderCut"):
+                if ( args.inputs.itemById("BVNoUnderCut").value):
+                    gear = generateGear(args.input.parentCommand.commandInputs)
+                    gear.profileShiftCoefficient = 0
+                    Zcrit = math.floor(gear.critcalVirtualToothCount)
+                    # check if teeth count is less or equal then 16 (limit of undercut)
+                    if ( gear.toothCount < Zcrit ):
+                        args.inputs.itemById("VIShift").value =  1 - (gear.toothCount / Zcrit)
+            # Deselect NoUnderCut when profileShift is filled out
+            if (args.input.id in ["VIShift", "DDType" , "ISTeeth" , "VIModule" , "VIHelixAngle", "VIPressureAngle"] ):
+                args.input.parentCommand.commandInputs.itemById("BVNoUnderCut").value = False
             # Updates Information
             if (args.inputs.itemById("TabProperties") and args.inputs.itemById("TabProperties").isActive):
                 gear = generateGear(args.inputs)
@@ -1256,6 +1315,8 @@ def preserveInputs(commandInputs, pers):
     pers['BVHerringbone'] = commandInputs.itemById("BVHerringbone").value
     pers['VIAddendum'] = commandInputs.itemById("VIAddendum").value
     pers['VIDedendum'] = commandInputs.itemById("VIDedendum").value
+    pers['VIShift'] = commandInputs.itemById("VIShift").value
+    pers['BVNoUnderCut'] = commandInputs.itemById("BVNoUnderCut").value
 
 
 def generateGear(commandInputs):
@@ -1300,6 +1361,7 @@ def generateGear(commandInputs):
                     commandInputs.itemById("VIBacklash").value,
                     commandInputs.itemById("VIAddendum").value,
                     commandInputs.itemById("VIDedendum").value,
+                    commandInputs.itemById("VIShift").value,
                     commandInputs.itemById("VIWidth").value,
                     commandInputs.itemById("BVHerringbone").value
                 )
@@ -1312,6 +1374,7 @@ def generateGear(commandInputs):
                     commandInputs.itemById("VIBacklash").value,
                     commandInputs.itemById("VIAddendum").value,
                     commandInputs.itemById("VIDedendum").value,
+                    commandInputs.itemById("VIShift").value,
                     commandInputs.itemById("VIWidth").value,
                     commandInputs.itemById("BVHerringbone").value
                 )
@@ -1325,6 +1388,7 @@ def generateGear(commandInputs):
                     -commandInputs.itemById("VIBacklash").value,
                     commandInputs.itemById("VIDedendum").value,
                     commandInputs.itemById("VIAddendum").value,
+                    commandInputs.itemById("VIShift").value,
                     commandInputs.itemById("VIWidth").value,
                     commandInputs.itemById("BVHerringbone").value,
                     commandInputs.itemById("VIDiameter").value
@@ -1338,6 +1402,7 @@ def generateGear(commandInputs):
                     -commandInputs.itemById("VIBacklash").value,
                     commandInputs.itemById("VIDedendum").value,
                     commandInputs.itemById("VIAddendum").value,
+                    commandInputs.itemById("VIShift").value,
                     commandInputs.itemById("VIWidth").value,
                     commandInputs.itemById("BVHerringbone").value,
                     commandInputs.itemById("VIDiameter").value
