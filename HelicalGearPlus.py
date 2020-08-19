@@ -19,6 +19,7 @@
 
 import adsk.core, adsk.fusion, traceback
 import math
+import time
 
 # Global set of event _handlers to keep them referenced for the duration of the command
 _handlers = []
@@ -420,7 +421,49 @@ class HelicalGear:
 
         return gear
 
+    @staticmethod
+    def createFromAttributes(attributes):
+        toothCount = int(attributes.itemByName("helicalGearPlus", "toothCount").value)
+        radialModule = float(attributes.itemByName("helicalGearPlus", "module").value)
+        radialPressureAngle = float(attributes.itemByName("helicalGearPlus", "pressureAngle").value)
+        helixAngle = float(attributes.itemByName("helicalGearPlus", "helixAngle").value)
+
+        gear = HelicalGear()
+        gear.backlash = float(attributes.itemByName("helicalGearPlus", "backlash").value)
+        gear.helixAngle = helixAngle
+        gear.toothCount = toothCount
+        gear.width = float(attributes.itemByName("helicalGearPlus", "width").value)
+        gear.herringbone = attributes.itemByName("helicalGearPlus", "herringbone").value == True
+        gear.profileShiftCoefficient = float(attributes.itemByName("helicalGearPlus", "profileShiftCoefficient").value)
+        gear.internalOutsideDiameter = float(attributes.itemByName("helicalGearPlus", "internalOutsideDiameter").value)
+        if gear.internalOutsideDiameter == 0:
+            gear.internalOutsideDiameter == None
+
+        gear.normalModule = radialModule * math.cos(gear.helixAngle)
+        gear.normalPressureAngle = math.atan(math.tan(radialPressureAngle) * math.cos(gear.helixAngle))
+        gear.normalCircularPitch = gear.normalModule * math.pi
+
+        cosHelixAngle = math.cos(helixAngle)
+        gear.virtualTeeth = gear.toothCount / math.pow(cosHelixAngle, 3)
+
+        # Radial / Transverse figures
+        gear.module = radialModule
+        gear.pressureAngle = radialPressureAngle
+        gear.pitchDiameter = gear.module * gear.toothCount
+        gear.baseDiameter = gear.pitchDiameter * math.cos(gear.pressureAngle)
+
+        gear.addendum = float(attributes.itemByName("helicalGearPlus", "addendum").value)
+        gear.wholeDepth = float(attributes.itemByName("helicalGearPlus", "wholeDepth").value)
+        gear.outsideDiameter = gear.pitchDiameter + 2 * gear.addendum
+        gear.rootDiameter = gear.outsideDiameter - 2 * gear.wholeDepth
+        gear.circularPitch = gear.module * math.pi
+
+        return gear
+
+
     def modelGear(self, parentComponent, sameAsLast=False):
+
+        print(self.helixAngle)
         # Storres a copy of the last gear generated to speed up regeneation of the same gear
         global lastGear
 
@@ -443,6 +486,19 @@ class HelicalGear:
                 'L' if self.helixAngle < 0 else 'R',
                 abs(math.degrees(self.helixAngle)),
                 round(self.normalModule * 10, 4))
+
+        occurrence.attributes.add("helicalGearPlus", "type", "Internal" if self.internalOutsideDiameter else "External")
+        occurrence.attributes.add("helicalGearPlus", "module", str(self.module))
+        occurrence.attributes.add("helicalGearPlus", "helixAngle", str(self.helixAngle))
+        occurrence.attributes.add("helicalGearPlus", "toothCount", str(self.toothCount))
+        occurrence.attributes.add("helicalGearPlus", "width", str(self.width))
+        occurrence.attributes.add("helicalGearPlus", "internalOutsideDiameter", str(self.internalOutsideDiameter) if self.internalOutsideDiameter else "0")
+        occurrence.attributes.add("helicalGearPlus", "herringbone", str(self.herringbone))
+        occurrence.attributes.add("helicalGearPlus", "pressureAngle", str(self.pressureAngle))
+        occurrence.attributes.add("helicalGearPlus", "backlash", str(self.backlash))
+        occurrence.attributes.add("helicalGearPlus", "addendum", str(self.addendum))
+        occurrence.attributes.add("helicalGearPlus", "wholeDepth", str(self.wholeDepth))
+        occurrence.attributes.add("helicalGearPlus", "profileShiftCoefficient", str(self.profileShiftCoefficient))
         
         # Creates BaseFeature if DesignType is parametric 
         if (parentComponent.parentDesign.designType):
@@ -622,6 +678,28 @@ class RackGear:
 
         return gear
 
+    @staticmethod
+    def createFromAttributes(attributes):
+        gear = RackGear()
+
+        gear.module = float(attributes.itemByName("helicalGearPlus", "module").value)
+        gear.pressureAngle = float(attributes.itemByName("helicalGearPlus", "pressureAngle").value)
+        gear.helixAngle = float(attributes.itemByName("helicalGearPlus", "helixAngle").value)
+        gear.herringbone = attributes.itemByName("helicalGearPlus", "herringbone") == "True"
+        gear.length = float(attributes.itemByName("helicalGearPlus", "length").value)
+        gear.width = float(attributes.itemByName("helicalGearPlus", "width").value)
+        gear.height = float(attributes.itemByName("helicalGearPlus", "height").value)
+        gear.backlash = float(attributes.itemByName("helicalGearPlus", "backlash").value)
+
+        gear.addendum = float(attributes.itemByName("helicalGearPlus", "addendum").value)
+        gear.dedendum = float(attributes.itemByName("helicalGearPlus", "dedendum").value)
+
+        cosHelixAngle = math.cos(float(attributes.itemByName("helicalGearPlus", "helixAngle").value))
+        gear.normalModule = gear.module * cosHelixAngle
+        gear.normalPressureAngle = math.atan(math.tan(gear.pressureAngle) * math.cos(gear.helixAngle))
+
+        return gear
+
     def __str__(self):
         str = ''
         str += '\n'
@@ -736,6 +814,18 @@ class RackGear:
             baseFeature.startEdit()
         else:
             baseFeature = None
+
+        occurrence.attributes.add("helicalGearPlus", "type", "Rack")
+        occurrence.attributes.add("helicalGearPlus", "module", str(self.module))
+        occurrence.attributes.add("helicalGearPlus", "helixAngle", str(self.helixAngle))
+        occurrence.attributes.add("helicalGearPlus", "width", str(self.width))
+        occurrence.attributes.add("helicalGearPlus", "length", str(self.length))
+        occurrence.attributes.add("helicalGearPlus", "height", str(self.height))
+        occurrence.attributes.add("helicalGearPlus", "herringbone", str(self.herringbone))
+        occurrence.attributes.add("helicalGearPlus", "pressureAngle", str(self.pressureAngle))
+        occurrence.attributes.add("helicalGearPlus", "backlash", str(self.backlash))
+        occurrence.attributes.add("helicalGearPlus", "addendum", str(self.addendum))
+        occurrence.attributes.add("helicalGearPlus", "dedendum", str(self.dedendum))
 
         if (not (sameAsLast and lastGear)):
 
@@ -987,8 +1077,9 @@ class CommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             viShift.tooltipDescription = "Represents the profile shift factor."
             
 
-            bvNoUnderCut = tabAdvanced.children.addBoolValueInput("BVNoUnderCut", "NoUnderCut", True, "", pers['BVNoUnderCut'])
-            bvNoUnderCut.tooltip = "No Under Cut"
+            bvNoUnderCut = tabAdvanced.children.addBoolValueInput("BVNoUnderCut", "  Calculate profile shift  ", False, "", pers['BVNoUnderCut'])
+            bvNoUnderCut.isFullWidth = True
+            bvNoUnderCut.tooltip = "Calculate profile shift"
             bvNoUnderCut.tooltipDescription = "Calculates the profile shift coefficient to avoid under cut."
             
             tbWarning2 = tabAdvanced.children.addTextBoxCommandInput("TBWarning2", "", '', 2, True)
@@ -998,6 +1089,7 @@ class CommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             siPlane.addSelectionFilter("ConstructionPlanes")
             siPlane.addSelectionFilter("Profiles")
             siPlane.addSelectionFilter("Faces")
+            siPlane.addSelectionFilter("Occurrences")
             siPlane.setSelectionLimits(0, 1)
             siPlane.tooltip = "Gear Plane"
             siPlane.tooltipDescription = "Select the plane the gear will be placed on.\n\nValid selections are:\n    Sketch Profiles\n    Construction Planes\n    BRep Faces"
@@ -1079,12 +1171,16 @@ class CommandExecuteHandler(adsk.core.CommandEventHandler):
     def notify(self, args):
         try:
             # Saves inputs to dict for persistence
+            t = time.time()
+
             preserveInputs(args.command.commandInputs, pers)
 
             gear = generateGear(args.command.commandInputs).modelGear(
                 adsk.core.Application.get().activeProduct.rootComponent)
 
-            moveGear(gear, args.command.commandInputs)
+            #moveGear(gear, args.command.commandInputs)
+
+            print(time.time()-t)
 
         except:
             print(traceback.format_exc())
@@ -1110,7 +1206,13 @@ class CommandExecutePreviewHandler(adsk.core.CommandEventHandler):
                 gear = generateGear(args.command.commandInputs).modelGear(
                     adsk.core.Application.get().activeProduct.rootComponent, reuseGear)
 
-                moveGear(gear, args.command.commandInputs)
+                #gear = RackGear.createFromAttributes(args.command.commandInputs.itemById("SIPlane").selection(0).entity.attributes).modelGear(adsk.core.Application.get().activeProduct.rootComponent)
+
+                #gear = getGearFromOccurrence(args.command.commandInputs.itemById("SIPlane").selection(0).entity).modelGear(adsk.core.Application.get().activeProduct.rootComponent)
+
+                #moveGear(gear, args.command.commandInputs)
+
+                meshGears(args.command.commandInputs.itemById("SIPlane").selection(0).entity, gear, args.command.commandInputs.itemById("AVRotation").value)
 
                 args.isValidResult = True
             else:
@@ -1281,6 +1383,12 @@ class CommandInputChangedHandler(adsk.core.InputChangedEventHandler):
                     args.input.parentCommand.commandInputs.itemById("DVOffsetY").setManipulator(py.asPoint(), y)
                     args.input.parentCommand.commandInputs.itemById("DVOffsetZ").setManipulator(pz.asPoint(), z)
 
+            if(args.input.id == "SIPlane"):
+                for i in args.input.selection(0).entity.attributes:
+                    print(i.name)
+                    print(i.value)
+                    print()
+
 
         except:
             print(traceback.format_exc())
@@ -1418,6 +1526,59 @@ def moveGear(gear, commandInputs):
     # Applies the movement in parametric design mode
     if (adsk.core.Application.get().activeDocument.design.designType):
         adsk.core.Application.get().activeDocument.design.snapshots.add()
+
+
+def meshGears(gear1occ, gear2occ, angle):
+    """Moves gear2 into the proper position
+
+    Args:
+        gear1occ: (Occurrence) The gear that stays where it is
+        gear2occ: (Occurrence) The gear to be moved
+    """
+
+    #rack
+    # x = z
+    # y = -x
+    # z = -y
+
+    gear1 = getGearFromOccurrence(gear1occ)
+    gear2 = getGearFromOccurrence(gear2occ)
+
+    # Gets the transform to the first gear
+    t1 = getTransformFromOccurrence(gear1occ)
+
+    # TODO: Rotation to match meshing
+
+    # Translates to correct distance
+    t2 = adsk.core.Matrix3D.create()
+    t2.setWithCoordinateSystem(
+        adsk.core.Point3D.create(getDistanceBetweenGears(gear1, gear2), 0, 0),
+        adsk.core.Vector3D.create(1, 0, 0),
+        adsk.core.Vector3D.create(0, 1, 0),
+        adsk.core.Vector3D.create(0, 0, 1)
+    )
+
+    # Rotates to match helix angle
+    t3 = adsk.core.Matrix3D.create()
+    t3.setToRotation(
+        -gear1.helixAngle - gear2.helixAngle,
+        adsk.core.Vector3D.create(1, 0, 0),
+        adsk.core.Point3D.create(0, 0, 0)
+    )
+
+    # Rotation to match direction
+    t4 = adsk.core.Matrix3D.create()
+    t4.setToRotation(
+        angle,
+        adsk.core.Vector3D.create(0, 0, 1),
+        adsk.core.Point3D.create(0, 0, 0)
+    )
+
+    t2.transformBy(t3)
+    t2.transformBy(t4)
+    t2.transformBy(t1)
+    
+    gear2occ.transform = t2
 
 
 def regularMoveMatrix(commandInputs):
@@ -1582,6 +1743,67 @@ def moveMatrixPxzfxyz(position, x, z, flip, offsetX, offsetY, offsetZ):
     )
 
     return mat
+
+
+def getGearFromOccurrence(occurrence):
+    """Tries to get a gear from an occurence based on attributes
+
+    Args:
+        occurrence: (Occurrence) The Occurence
+
+    Returns:
+        RackGear / HelicalGear: Gear
+    """
+
+    if(occurrence.attributes.itemByName("helicalGearPlus", "type")):
+        try:
+            if(occurrence.attributes.itemByName("helicalGearPlus", "type").value == "Rack"):
+                return RackGear.createFromAttributes(occurrence.attributes)
+            else:
+                return HelicalGear.createFromAttributes(occurrence.attributes)
+        except:
+            return False
+    else:
+        return False
+
+
+def getTransformFromOccurrence(occurrence):
+    """gets the transform of an occurrence
+
+    Args:
+        occurrence: (Occurrence) The Occurence
+
+    Returns:
+        Matrix3D: Transform
+    """
+    #TODO: layers
+    return occurrence.transform.copy()
+
+
+def getDistanceBetweenGears(gear1, gear2):
+    """Determines the correct center distance between two gears
+
+    Args:
+        gear1: (HelicalGear / RackGear) First Gear
+        gear2: (HelicalGear / RackGear) Second Gear
+
+    Returns:
+        Float: distance
+    """
+
+    #TODO: Profile shift offset
+
+    if(hasattr(gear1, "pitchDiameter")):
+        dg1 = gear1.pitchDiameter/2
+    else:
+        dg1 = 0
+
+    if(hasattr(gear2, "pitchDiameter")):
+        dg2 = gear2.pitchDiameter/2
+    else:
+        dg2 = 0
+
+    return dg1 + dg2
 
 
 def getPrimitiveFromSelection(selection):
