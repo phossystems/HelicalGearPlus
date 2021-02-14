@@ -117,12 +117,38 @@ class Involute:
                                                 zShift)
         pitchPointAngle = math.atan2(pitchInvolutePoint.y, pitchInvolutePoint.x)
 
+#	var x1, x2, y1, y2;
+#	var umax = Math.sqrt( fTipRadius * fTipRadius / fBaseRadius / fBaseRadius - 1);
+
+#	x1 = fBaseRadius;
+#	y1 = 0;
+
+#	x2 = fBaseRadius * ( Math.cos( umax ) + umax * Math.sin( umax ) );
+#	y2 = fBaseRadius * ( Math.sin( umax ) - umax * Math.cos( umax ) );
+#
+#	// distance between beginning and end of the involute curve
+#	var d = Math.sqrt( ( x1 - x2 ) * ( x1 - x2 ) + ( y1 - y2 ) * ( y1 - y2 ) );
+#	var cosx = (fBaseRadius * fBaseRadius + fTipRadius * fTipRadius - d * d) / 2 / fBaseRadius / fTipRadius;
+#
+#	var basetooththickness = 2 * fTopThicknessDegrees + 2 * Math.acos(cosx) * 180 / Math.PI;
+
+
+
+
         # Rotate the involute so the intersection point lies on the x axis.
         # add half of the profile shift 
-        # TODO the next 3 sections can be combined in less loops and calculation
-        halfShiftAngle = self.gear.modifier.profileShift * math.tan(self.gear.pressureAngle)
+        # derived from S0 in https://www.tec-science.com/mechanical-power-transmission/involute-gear/profile-shift/
+        # the additional angle to rotate is 
+        # sinus rule on triangle with 2 known vertices and 1 angle
+        # known vertices are R and R+x*m
+        # known angle is the pressureangle
+        # sinus rule a/sin(alfa) = b/sin(beta) = c/sin(gamma)
 
-        rotateAngle = -((self.gear.toothArcAngle / 4) + pitchPointAngle - (self.gear.backlashAngle / 4) + halfShiftAngle/2)
+        halfShiftAngle =math.asin((self.gear.pitchDiameter/2 + self.gear.modifier.profileShift*self.gear.module)/(self.gear.pitchDiameter/2) * math.sin(self.gear.pressureAngle)) - self.gear.pressureAngle
+        
+        rotateAngle = -((self.gear.toothArcAngle / 4) + pitchPointAngle - (self.gear.backlashAngle / 4) + halfShiftAngle)
+        
+        ### TODO the next 3 sections can be combined in less loops and calculation
         cosAngle = math.cos(rotateAngle)
         sinAngle = math.sin(rotateAngle)
         for i in range(0, involutePointCount):
@@ -139,7 +165,7 @@ class Involute:
             involute2Points.append(adsk.core.Point3D.create(involutePoints[i].x, -involutePoints[i].y, zShift))
 
         # Rotate involute
-        # TODO check if this is just a rotation ? if so get rid of it since rotating the gear is simpler
+        ### TODO check if this is just a rotation ? if so get rid of it since rotating the gear is simpler
         if rotation:
             cosAngle = math.cos(rotation)
             sinAngle = math.sin(rotation)
@@ -295,16 +321,124 @@ class GearMount:
         
 class HelicalGear(object):
     def __init__(self):
-        pass
+        self.modifier = GearModifier
+        self.mount = GearMount
 
     @property
-    def module(self):
-        return self.__module
+    def normalModule(self):
+        return self.__normalModule
 
-    @module.setter
-    def module(self, val):
-        self.__module = val
-        
+    @normalModule.setter
+    def normalModule(self, val):
+        self.__normalModule = val
+
+    @property
+    def normalPressureAngle(self):
+        return self.__normalPressureAngle
+
+    @normalPressureAngle.setter
+    def normalPressureAngle(self, val):
+        self.__normalPressureAngle = val    
+
+    @property
+    def radialModule(self):
+        return self.__normalModule / math.cos(self.helixAngle)
+
+    @radialModule.setter
+    def radialModule(self, val):
+        val = val if val > 0 else 1e-10
+        self.__normalModule = val * math.cos(self.helixAngle)
+
+    @property
+    def radialPressureAngle(self):
+        return self.__normalPressureAngle / math.cos(self.helixAngle)
+
+    @radialPressureAngle.setter
+    def radialPressureAngle(self, val):
+        val = val if 0 <= val < math.radians(90) else 0
+        self.__normalPressureAngle = math.atan(math.tan(val ))*math.cos(self.helixAngle)
+
+    @property
+    def toothCount(self):
+        return self.__toothCount
+
+    @toothCount.setter
+    def toothCount(self, val):
+        self.__toothCount = val if val > 0 else 1
+
+    @property
+    def helixAngle(self):
+        return self.__helixAngle
+
+    @helixAngle.setter
+    def helixAngle(self, val):
+        self.__helixAngle = val if math.radians(-90) < val < math.radians(90) else 0 
+
+    @property
+    def width(self):
+        return self.__width
+
+    @width.setter
+    def width(self, val):
+        self.__width = val if val > 0 else 0
+
+    @property
+    def herringbone(self):
+        return self.__herringbone
+
+    @herringbone.setter
+    def herringbone(self, val):
+        self.__herringbone = val if val > 0 else 0
+
+    @property
+    def internalOutsideDiameter(self):
+        return self.__internalOutsideDiameter
+
+    @internalOutsideDiameter.setter
+    def internalOutsideDiameter(self, val):
+        self.__internalOutsideDiameter = val if val > 0 else 0
+
+    @property
+    def backlash(self):
+        return self.__backlash
+
+    @backlash.setter
+    def backlash(self, val):
+        self.__backlash = val 
+
+    @property
+    def normalAddendum(self):
+        return self.__normalAddendum
+
+    @normalAddendum.setter
+    def normalAddendum(self, val):
+        self.__normalAddendum = val 
+
+    @property
+    def normalDedendum(self):
+        return self.__normalDedendum
+
+    @normalDedendum.setter
+    def normalDedendum(self, val):
+        self.__normalDedendum = val 
+
+    @property
+    def addendum(self):
+        if (self.modifier.otherProfileShift == 0):
+            return (self.normalAddendum + self.modifier.profileShift) * self.module
+        else:
+            return (self.normalAddendum + self.centerDistanceIncrementFactor - self.modifier.otherProfileShift)*self.module
+
+    @property
+    def wholeDepth(self):
+        if (self.modifier.otherProfileShift == 0):
+            return (self.normalAddendum + self.normalDedendum ) * self.module 
+        else: 
+            return (self.normalAddendum + self.normalDedendum + self.centerDistanceIncrementFactor - self.modifier.profileShift - self.modifier.otherProfileShift) * self.module 
+
+    @property
+    def dedendum(self):
+        return self.normalDedendum
     @property
     def isUndercutRequried(self):
         return self.virtualTeeth < self.critcalVirtualToothCount        
@@ -320,6 +454,22 @@ class HelicalGear(object):
         return 2 * math.pi / self.toothCount if self.toothCount > 0 else 0
 
     @property
+    def module(self):
+        return self.__normalModule if self.__helixAngle == 0 else self.__normalModule / math.cos(self.__helixAngle)
+
+    @property
+    def pressureAngle(self):
+        return math.atan2(math.tan(self.normalPressureAngle), math.cos(self.__helixAngle))  
+
+    @property
+    def normalCircularPitch(self):
+        return self.normalModule * math.pi
+
+    @property
+    def virtualTeeth(self):
+        return self.toothCount / math.pow(math.cos(self.helixAngle),3)        
+
+    @property
     def toothThickness(self):
         """"Thickness of the tooth at reference pitch circle"""
         return self.module *(math.pi / 2 + 2 * self.modifier.profileShift * math.tan(self.pressureAngle))
@@ -328,6 +478,12 @@ class HelicalGear(object):
     def tipPressureAngle(self):
         """Pressure angle at the tip of the tooth."""
         return math.acos(self.baseDiameter / self.outsideDiameter)
+
+    @property 
+    def tipDiameter(self):
+        """Tip Diameter."""
+        return   self.pitchDiameter + 2 * self.addendum
+        #### gear.outsideDiameter = gear.tipDiameter
 
     @property
     def involuteA(self):
@@ -352,17 +508,32 @@ class HelicalGear(object):
     @property
     def pitchDiameter(self):
         """Pitch diameter, contact point diameter at given pressure angle."""
-        return module * toothcount
+        return self.module * self.toothCount
 
     @property 
     def baseDiameter(self):
         """Base diameter """
-        return pitchDiameter * math.cos(gear.pressureAngle)
-
+        return self.pitchDiameter * math.cos(self.pressureAngle)
+        
     @property
     def workingPitchDiameter(self):
         """"Working Pitch diameter, point of contact on the working pressure angle."""        
-        return baseDiameter / math.cos(workingPressureAngle)
+        return self.baseDiameter / math.cos(self.workingPressureAngle) 
+
+    @property
+    def rootDiameter(self):
+        """"Root diameter of the gear."""        
+        return self.outsideDiameter - 2 * self.wholeDepth
+        #### gear.rootDiameter = gear.outsideDiameter - 2 * gear.wholeDepth # this should be workingPitchDiameter when profile shifted 1/11/2020
+    @property
+    def baseDiameter(self):
+        """"Base diameter of the gear."""       
+        return self.pitchDiameter * math.cos(self.pressureAngle) 
+
+    @property
+    def outsideDiameter(self):
+        """"Base diameter of the gear."""        
+        return self.pitchDiameter + 2 * self.addendum
 
     @property
     def centerDistanceIncrementFactor(self):
@@ -375,7 +546,7 @@ class HelicalGear(object):
         """Top land is the (sometimes flat) surface of the top of a gear tooth.
         DOES NOT APPEAR TO PRODUCE THE CORRECT VALUE."""
         return ((math.pi / (2 * self.toothCount)) + ((2 * self.modifier.profileShift * math.tan(self.pressureAngle)) / self.toothCount) + (self.involuteA- self.involuteAa))
-
+ 
     @property
     def topLandThickness(self):
     # v TO DONE fix this         verified with documentation
@@ -388,6 +559,10 @@ class HelicalGear(object):
         q = math.pow(math.sin(self.normalPressureAngle), 2)
         return 2*(1 - self.modifier.profileShift) / q if q != 0 else float('inf')
 
+    @property 
+    def circularPitch(self):
+        return self.module * math.pi
+    
     @property
     def isInvalid(self):
         if (self.width <= 0):
@@ -438,14 +613,15 @@ class HelicalGear(object):
         return displacement / (math.tan(math.radians(90) + self.helixAngle) * (self.pitchDiameter / 2))
 
     def __str__(self):
-        # TODO make 2 versions short version and extended based on checkbox input
+        # TO DO make 2 versions short version and extended based on checkbox input
         str = ''
         str += '\n'
         str += 'root diameter..............:  {0:.3f} mm\n'.format(self.rootDiameter * 10)
         str += 'base diameter..............:  {0:.3f} mm\n'.format(self.baseDiameter * 10)
-        str += 'pitch diameter.............:  {0:.3f} mm\n'.format(self.pitchDiameter * 10)
+        str += 'pitch diameter (ref).......:  {0:.3f} mm\n'.format(self.pitchDiameter * 10)
         str += 'outside diameter...........:  {0:.3f} mm\n'.format(self.outsideDiameter * 10)
         str += 'profile shift coefficient : {0:.3f} \n'.format(self.modifier.profileShift)
+        str += 'Working pitch diameter....:  {0:.3f} mm\n'.format(self.workingPitchDiameter * 10)
         str += '\n'
         str += 'module.....................:  {0:.3f} mm\n'.format(self.module * 10)
         str += 'normal module..............:  {0:.3f} mm\n'.format(self.normalModule * 10)
@@ -480,15 +656,15 @@ class HelicalGear(object):
 #                             dedendum=1.25, profileshift=0, width=1, herringbone=False, internalOutsideDiameter=None,toothcount2=0,profileshift2=0,
 #                             ctrctrcorrection=0, bore=0, keyheight=0, keywidth=0):
 # TODO  should we replace the profileshift2 by the center-center correction factor
-        toothCount = toothCount if toothCount > 0 else 1
+        #### toothCount = toothCount if toothCount > 0 else 1
         # normalModule = normalModule if normalModule > 0 else 1e-10
         # normalPressureAngle = normalPressureAngle if 0 <= normalPressureAngle < math.radians(90) else 0
         # helixAngle = helixAngle if math.radians(-90) < helixAngle < math.radians(90) else 0
 
         gear = HelicalGear()
-        gear.backlash = backlash
-        gear.helixAngle = helixAngle
-        gear.toothCount = toothCount
+        gear.backlash = backlash        # setter
+        gear.helixAngle = helixAngle    # setter 
+        gear.toothCount = toothCount    # setter
         gear.width = width
         gear.herringbone = herringbone
         gear.internalOutsideDiameter = internalOutsideDiameter
@@ -504,51 +680,50 @@ class HelicalGear(object):
         gear.normalModule = normalModule
         gear.normalPressureAngle = normalPressureAngle
 
-        gear.normalCircularPitch = gear.normalModule * math.pi
-        cosHelixAngle = math.cos(helixAngle)
-        gear.virtualTeeth = gear.toothCount / math.pow(cosHelixAngle, 3)
+        #### gear.normalCircularPitch = gear.normalModule * math.pi
+        #### cosHelixAngle = math.cos(helixAngle)
+        #### gear.virtualTeeth = gear.toothCount / math.pow(cosHelixAngle, 3)
 
         # Radial / Transverse figures
-        gear.module = gear.normalModule / cosHelixAngle                                     #
-        gear.
-        gear.pressureAngle = math.atan2(math.tan(gear.normalPressureAngle), cosHelixAngle)  #
-        ## gear.pitchDiameter = gear.module * gear.toothCount                                  # v
-        ## gear.baseDiameter = gear.pitchDiameter * math.cos(gear.pressureAngle)               # v
+        #### gear.module = gear.normalModule / cosHelixAngle                                     #
+        #### gear.pressureAngle = math.atan2(math.tan(gear.normalPressureAngle), cosHelixAngle)  #
+        #### gear.pitchDiameter = gear.module * gear.toothCount                                  # v
+        #### gear.baseDiameter = gear.pitchDiameter * math.cos(gear.pressureAngle)               # v
         # TODO add profile shift
         #
         ## gear.workingPitchDiameter = gear.baseDiameter / math.cos(gear.workingPressureAngle)
         
-        # gear.addendum = addendum
-        # gear.dedendum = dedendum
+        gear.normalAddendum = addendum
+        gear.normalDedendum = dedendum
         # gear.addendumDiameter = gear.module * (gear.toothCount + 2 * gear.modifier.profileShift + 2 * gear.addendum)
         # gear.dedemdumDiameter = gear.module * (gear.toothCount + 2 * gear.modifier.profileShift - 2 * gear.dedendum) 
 
-        if (gear.modifier.otherProfileShift == 0):
-            gear.addendum = (addendum  + gear.modifier.profileShift) * gear.module 
-            gear.wholeDepth = (addendum + dedendum ) * gear.module 
-        else:
-            gear.addendum = ( addendum  + gear.centerDistanceIncrementFactor - gear.modifier.otherProfileShift ) * gear.module
-            gear.wholeDepth = (addendum + dedendum + gear.centerDistanceIncrementFactor - gear.modifier.profileShift - gear.modifier.otherProfileShift) * gear.module 
+        ####if (gear.modifier.otherProfileShift == 0):
+        ####    gear.addendum = (addendum  + gear.modifier.profileShift) * gear.module 
+        ####    gear.wholeDepth = (addendum + dedendum ) * gear.module 
+        ####else:
+        ####    gear.addendum = ( addendum  + gear.centerDistanceIncrementFactor - gear.modifier.otherProfileShift ) * gear.module
+        ####    gear.wholeDepth = (addendum + dedendum + gear.centerDistanceIncrementFactor - gear.modifier.profileShift - gear.modifier.otherProfileShift) * gear.module 
         
         # gear.wholeDepth = (addendum + dedendum + gear.centerDistanceIncrementFactor - gear.modifier.profileShift - profileshift2) * gear.module 
-        gear.tipDiameter = gear.pitchDiameter + 2 * gear.addendum
+        #### gear.tipDiameter = gear.pitchDiameter + 2 * gear.addendum
         # is the next line correct ???
-        gear.outsideDiameter = gear.workingPitchDiameter + 2 * gear.addendum 
-        gear.outsideDiameter = gear.tipDiameter
-        gear.rootDiameter = gear.outsideDiameter - 2 * gear.wholeDepth # this should be workingPitchDiameter when profile shifted 1/11/2020
-        gear.circularPitch = gear.module * math.pi
+        #### gear.outsideDiameter = gear.workingPitchDiameter + 2 * gear.addendum 
+        #### gear.outsideDiameter = gear.tipDiameter
+        #### gear.rootDiameter = gear.outsideDiameter - 2 * gear.wholeDepth # this should be workingPitchDiameter when profile shifted 1/11/2020
+        #### gear.circularPitch = gear.module * math.pi
 
         return gear
-
+# TODO check if radial module works as expected
     @staticmethod
     def createInRadialSystem(toothCount, radialModule, radialPressureAngle, helixAngle, backlash=0, addendum=1,
                              dedendum=1.25, width=1, herringbone=False, internalOutsideDiameter=None,
                              gearmodifier = None, gearmount = None ):
 #                             toothcount2=0,profileshift2=0):
-        toothCount = toothCount if toothCount > 0 else 1
-        radialModule = radialModule if radialModule > 0 else 1e-10
-        radialPressureAngle = radialPressureAngle if 0 <= radialPressureAngle < math.radians(90) else 0
-        helixAngle = helixAngle if math.radians(-90) < helixAngle < math.radians(90) else 0
+        #### toothCount = toothCount if toothCount > 0 else 1
+        #### radialModule = radialModule if radialModule > 0 else 1e-10
+        #### radialPressureAngle = radialPressureAngle if 0 <= radialPressureAngle < math.radians(90) else 0
+        #### helixAngle = helixAngle if math.radians(-90) < helixAngle < math.radians(90) else 0
 
         gear = HelicalGear()
         gear.backlash = backlash
@@ -558,16 +733,16 @@ class HelicalGear(object):
         gear.herringbone = herringbone
         gear.internalOutsideDiameter = internalOutsideDiameter
 
-        gear.normalModule = radialModule * math.cos(gear.helixAngle)
-        gear.normalPressureAngle = math.atan(math.tan(radialPressureAngle) * math.cos(gear.helixAngle))
-        gear.normalCircularPitch = gear.normalModule * math.pi
+        #### gear.normalModule = radialModule * math.cos(gear.helixAngle)
+        #### gear.normalPressureAngle = math.atan(math.tan(radialPressureAngle) * math.cos(gear.helixAngle))
+        #### gear.normalCircularPitch = gear.normalModule * math.pi
 
         cosHelixAngle = math.cos(helixAngle)
-        gear.virtualTeeth = gear.toothCount / math.pow(cosHelixAngle, 3)
+        #### gear.virtualTeeth = gear.toothCount / math.pow(cosHelixAngle, 3)
 
         # Radial / Transverse figures
-        gear.module = radialModule
-        gear.pressureAngle = radialPressureAngle
+        #### gear.module = radialModule
+        #### gear.pressureAngle = radialPressureAngle
         ## gear.pitchDiameter = gear.module * gear.toothCount
         ## gear.baseDiameter = gear.pitchDiameter * math.cos(gear.pressureAngle)
 
@@ -599,11 +774,11 @@ class HelicalGear(object):
         #  wholedepth = (addendumdiameter - dedendumdiameter) / 2 = 2 * module + clearnce
 
         # TODO add profile shift
-        gear.addendum = ( addendum  + profileshift ) * gear.module
-        gear.wholeDepth = (addendum + dedendum) * gear.module
-        gear.outsideDiameter = gear.pitchDiameter + 2 * gear.addendum
-        gear.rootDiameter = gear.outsideDiameter - 2 * gear.wholeDepth
-        gear.circularPitch = gear.module * math.pi
+        #### gear.addendum = ( addendum  + profileshift ) * gear.module
+        #### gear.wholeDepth = (addendum + dedendum) * gear.module
+        #### gear.outsideDiameter = gear.pitchDiameter + 2 * gear.addendum
+        #### gear.rootDiameter = gear.outsideDiameter - 2 * gear.wholeDepth
+        #### gear.circularPitch = gear.module * math.pi
 
         return gear
 
@@ -803,9 +978,9 @@ class HelicalGear(object):
 
             # Draws pitch diameter
             pitchDiameterSketch = component.sketches.add(component.xYConstructionPlane)
-            pitchDiameterSketch.name = "PD: {0:.3f}mm".format(self.pitchDiameter * 10)
+            pitchDiameterSketch.name = "PD: {0:.3f}mm".format(self.workingPitchDiameter * 10)
             pitchDiameterCircle = pitchDiameterSketch.sketchCurves.sketchCircles.addByCenterRadius(
-                adsk.core.Point3D.create(0, 0, 0), self.pitchDiameter / 2)
+                adsk.core.Point3D.create(0, 0, 0), self.workingPitchDiameter / 2)
             pitchDiameterCircle.isConstruction = True
             pitchDiameterCircle.isFixed = True
 
@@ -815,26 +990,29 @@ class HelicalGear(object):
 
             # add attributes to component to remember when used in placement
             gear_attributes = occurrence.attributes
-            gear_attributes.add('HelicalGear', 'type', "Gear")
-            gear_attributes.add('HelicalGear', 'module', "{0}".format(self.module))
-            gear_attributes.add('HelicalGear', 'teeth', "{0}".format(self.toothCount))
-            gear_attributes.add('HelicalGear', 'pressureAngle', "{0}".format(self.pressureAngle))
-            gear_attributes.add('HelicalGear', 'helixAngle', "{0}".format(self.helixAngle))
+            gear_attributes.add('HelicalGear', 'type', "Gear")                                      # def
+            gear_attributes.add('HelicalGear', 'module', "{0}".format(self.module))                 # def
+            gear_attributes.add('HelicalGear', 'teeth', "{0}".format(self.toothCount))              # def
+            gear_attributes.add('HelicalGear', 'pressureAngle', "{0}".format(self.pressureAngle))   # def
+            gear_attributes.add('HelicalGear', 'helixAngle', "{0}".format(self.helixAngle))         # def
             gear_attributes.add('HelicalGear', 'rootDiameter', "{0}".format(self.rootDiameter))
             gear_attributes.add('HelicalGear', 'baseDiameter', "{0}".format(self.baseDiameter))
             gear_attributes.add('HelicalGear', 'pitchDiameter', "{0}".format(self.pitchDiameter))
             gear_attributes.add('HelicalGear', 'outsideDiameter', "{0}".format(self.outsideDiameter))
-            gear_attributes.add('HelicalGear', 'backlash', "{0}".format(self.backlash))
-            gear_attributes.add('HelicalGear', 'herringbone', "{0}".format(self.herringbone))
-            # gear mounting
-            gear_attributes.add('HelicalGear', 'bore', "{0}".format(self.mount.bore))
-            gear_attributes.add('HelicalGear', 'keyWidth', "{0}".format(self.mount.keyWidth))
-            gear_attributes.add('HelicalGear', 'keyHeight', "{0}".format(self.mount.keyHeight))
-            # TODO add additional attributes
+            gear_attributes.add('HelicalGear', 'backlash', "{0}".format(self.backlash))             # def
+            gear_attributes.add('HelicalGear', 'herringbone', "{0}".format(self.herringbone))       # def
             # gear modifiers
-            gear_attributes.add('HelicalGear', 'profileShiftCoefficient', "{0}".format(self.modifier.profileShift))
-            # gear_attributes.add('HelicalGear', 'centercorrectionfactor', "{0}".format(self.herringbone))
-
+            gear_attributes.add('HelicalGear', 'profileShiftCoefficient', "{0}".format(self.modifier.profileShift)) # def
+            if (self.modifier.centerCenterDistance != 0):
+                gear_attributes.add('HelicalGear', 'centerCenterDistance', "{0}".format(self.modifier.centerCenterDistance)) # def
+                gear_attributes.add('HelicalGear', 'otherProfileShift', "{0}".format(self.modifier.otherProfileShift)) # def
+                gear_attributes.add('HelicalGear', 'otherToothCount', "{0}".format(self.modifier.otherToothCount)) # def
+            # gear mounting
+            if (self.mount.bore != 0):
+                gear_attributes.add('HelicalGear', 'bore', "{0}".format(self.mount.bore))               # def
+                gear_attributes.add('HelicalGear', 'keyWidth', "{0}".format(self.mount.keyWidth))       # def
+                gear_attributes.add('HelicalGear', 'keyHeight', "{0}".format(self.mount.keyHeight))     # def
+            
             return occurrence
 
         except:
@@ -1104,7 +1282,7 @@ class RackGear:
             for b in tools:
                 b.deleteMe()
 
-            # Storres a copy of the newly generated gear            
+            # Stores a copy of the newly generated gear            
             lastGear = tbm.copy(gearBody)
         else:
             if (baseFeature):
@@ -1132,7 +1310,6 @@ class RackGear:
         gear_attributes.add('HelicalGear', 'teeth', "{0}".format(self.toothCount))
         gear_attributes.add('HelicalGear', 'pressureAngle', "{0}".format(self.pressureAngle))
         gear_attributes.add('HelicalGear', 'helixAngle', "{0}".format(self.helixAngle))
-        gear_attributes.add('HelicalGear', 'profileShiftCoefficient', "{0}".format(self.modifier.profileShift))
         gear_attributes.add('HelicalGear', 'backlash', "{0}".format(self.backlash))
         gear_attributes.add('HelicalGear', 'herringbone', "{0}".format(self.herringbone))
 
@@ -1270,6 +1447,10 @@ class CommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             viKeyHeight.toolClipFilename = 'resources/captions/BoreKey.png'                                             
             viKeyHeight.tooltip = "KeyHeight"
             viKeyHeight.tooltipDescription = "Height of the key"
+
+            # TODO add LEGO mount ?
+            # diameter 4.8, thickness 1.7, fillet 0.9
+
 
             # Advanced command inputs
             ddStandard = tabAdvanced.children.addDropDownCommandInput("DDStandard", "Standard", 0)
@@ -1434,6 +1615,56 @@ class CommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             # Properties
             tbProperties = tabProperties.children.addTextBoxCommandInput("TBProperties", "", "", 5, True)
 
+            app = adsk.core.Application.get()
+            ui = app.userInterface
+
+            if (ui.activeSelections.count == 1):
+                if (ui.activeSelections.item(0).entity.objectType == "adsk::fusion::Occurrence"):
+                    if (ui.activeSelections.item(0).entity.attributes):
+                        if ('HelicalGear' in ui.activeSelections.item(0).entity.attributes.groupNames):
+                            selectedGear = ui.activeSelections.item(0).entity
+
+                            gearType = selectedGear.attributes.itemByName('HelicalGear', 'type')       # def
+                            module = selectedGear.attributes.itemByName('HelicalGear', 'module')                 # def
+                            helixAngle = selectedGear.attributes.itemByName('HelicalGear', 'helixAngle')         # def
+                            helixAngle = float(helixAngle.value) if (helixAngle) else 0.0
+                            if (module): viModule.value = float(module.value) * math.cos(helixAngle)
+                            toothcount = selectedGear.attributes.itemByName('HelicalGear', 'teeth')              # def
+                            # copy to the mating gear
+                            if (toothcount): isTeeth2.value = int(toothcount.value)
+                            pressureAngle = selectedGear.attributes.itemByName('HelicalGear', 'pressureAngle')   # def
+                            if (pressureAngle): viPressureAngle.value = float(pressureAngle.value)
+                            helixAngle = selectedGear.attributes.itemByName('HelicalGear', 'helixAngle')         # def
+                            if (helixAngle): viHelixAngle.value = - float(helixAngle.value)
+                            # backlash should not be copied. It is a decission by gear 
+                            # backlash = selectedGear.attributes.itemByName('HelicalGear', 'backlash')             # def
+                            herringbone = selectedGear.attributes.itemByName('HelicalGear', 'herringbone')       # def
+                            if (herringbone): bvHerringbone.value = herringbone.value == '1'
+
+                            if (gearType and gearType.value == 'Gear'):
+                                profileshift = selectedGear.attributes.itemByName('HelicalGear', 'profileShiftCoefficient') # def
+                                # copy this value to the mating gear
+                                if (profileshift): viShift2.value = float(profileshift.value)
+                                ctrctrDistance = selectedGear.attributes.itemByName('HelicalGear', 'centerCenterDistance') # def
+                                if (ctrctrDistance):
+                                    bvCtrCtr.value = True
+                                    viCtrCtr.value = float(ctrctrDistance.value)
+                                othershift = selectedGear.attributes.itemByName('HelicalGear', 'otherProfileShift') # def
+                                if (othershift): viShift.value = float(othershift.value)
+                                otherToothCount = selectedGear.attributes.itemByName('HelicalGear', 'otherToothCount') # def
+                                if (otherToothCount): isTeeth.value = int(otherToothCount.value)
+
+                            elif (gearType and gearType.value == 'Rack'):
+                                pass
+                            else:
+                                #we shouldn't be here
+                                pass
+
+                            
+                            # we have a helical gear selected
+                            pass
+            
+
         except:
             print(traceback.format_exc())
 
@@ -1549,6 +1780,7 @@ class CommandInputChangedHandler(adsk.core.InputChangedEventHandler):
                 args.inputs.itemById("VIKeyHeight").isVisible = hasBore and hasKey
             # Update profile shift when NoUnderCut selected
             if (args.input.id == "BVNoUnderCut"):
+                # TODO should this be in the validate ???
                 if ( args.inputs.itemById("BVNoUnderCut").value):
                     gear = generateGear(args.input.parentCommand.commandInputs)
                     gear.modifier.profileShift = 0
@@ -1566,6 +1798,22 @@ class CommandInputChangedHandler(adsk.core.InputChangedEventHandler):
                 args.inputs.itemById("VIShift2").isVisible = ctrCtr
                 args.inputs.itemById("VICtrCtr").isVisible = ctrCtr
                 args.inputs.itemById("SIGear2").isVisible = ctrCtr
+            # TODO should this be in the validate ????
+            if (args.input.id in ["VIShift2", "VICtrCtr", "ISTeeth2"]):
+                # TODO update profile shift and shift2 if nrteeth2 is filled out and viCtrCtr is filled out
+                if ((args.inputs.itemById("VICtrCtr").value != 0) and 
+                    (args.inputs.itemById("ISTeeth2").value != 0) ):
+                    # we have enough input to calculate the profile shift
+                    gear = generateGear(args.input.parentCommand.commandInputs)
+                    if (args.input.id == "VIShift2"):
+                        # need to update shift 1
+                        args.inputs.itemById("VIShift").value = gear.modifier.profileShift
+                    elif (args.inputs.itemById("VIShift").value == 0):
+                        args.inputs.itemById("VIShift").value = gear.modifier.profileShift
+                        if (args.inputs.itemById("VIShift2").value == 0):
+                            args.inputs.itemById("VIShift2").value = gear.modifier.otherProfileShift
+                        else:
+                            args.inputs.itemById("VIShift2").value = gear.modifier.otherProfileShift
             # Updates Information
             if (args.inputs.itemById("TabProperties") and args.inputs.itemById("TabProperties").isActive):
                 gear = generateGear(args.inputs)
@@ -1612,7 +1860,48 @@ class CommandInputChangedHandler(adsk.core.InputChangedEventHandler):
             if (args.input.id == "SIGear2")                    :
                 args.input.parentCommand.commandInputs.itemById("SIGear").clearSelection()
                 args.input.parentCommand.commandInputs.itemById("SIGear").addSelection(args.input.selection(0).entity)
-                # TO DONE update position
+                #  TO DONE update parameters 2nd gear
+                #      if ctrctr then update profile shift
+                if (args.input.selection(0).entity):
+                    if ('HelicalGear' in args.input.selection(0).entity.attributes.groupNames):
+                        selectedGear = args.input.selection(0).entity
+
+                        gearType = selectedGear.attributes.itemByName('HelicalGear', 'type')       # def
+                        module = selectedGear.attributes.itemByName('HelicalGear', 'module')                 # def
+                        helixAngle = selectedGear.attributes.itemByName('HelicalGear', 'helixAngle')         # def
+                        helixAngle = float(helixAngle.value) if (helixAngle) else 0.0
+                        if (module): viModule.value = float(module.value) * math.cos(helixAngle)
+                        toothcount = selectedGear.attributes.itemByName('HelicalGear', 'teeth')              # def
+                        # copy to the mating gear
+                        if (toothcount): isTeeth2.value = int(toothcount.value)
+                        pressureAngle = selectedGear.attributes.itemByName('HelicalGear', 'pressureAngle')   # def
+                        if (pressureAngle): viPressureAngle.value = float(pressureAngle.value)
+                        helixAngle = selectedGear.attributes.itemByName('HelicalGear', 'helixAngle')         # def
+                        if (helixAngle): viHelixAngle.value = - float(helixAngle.value)
+                        # backlash should not be copied. It is a decission by gear 
+                        # backlash = selectedGear.attributes.itemByName('HelicalGear', 'backlash')             # def
+                        herringbone = selectedGear.attributes.itemByName('HelicalGear', 'herringbone')       # def
+                        if (herringbone): bvHerringbone.value = herringbone.value == '1'
+
+                        if (gearType and gearType.value == 'Gear'):
+                            profileshift = selectedGear.attributes.itemByName('HelicalGear', 'profileShiftCoefficient') # def
+                            # copy this value to the mating gear
+                            if (profileshift): viShift2.value = float(profileshift.value)
+                            ctrctrDistance = selectedGear.attributes.itemByName('HelicalGear', 'centerCenterDistance') # def
+                            if (ctrctrDistance):
+                                bvCtrCtr.value = True
+                                viCtrCtr.value = float(ctrctrDistance.value)
+                            othershift = selectedGear.attributes.itemByName('HelicalGear', 'otherProfileShift') # def
+                            if (othershift): viShift.value = float(othershift.value)
+                #            otherToothCount = selectedGear.attributes.itemByName('HelicalGear', 'otherToothCount') # def
+                #            if (otherToothCount): isTeeth.value = int(otherToothCount.value)
+
+                        elif (gearType and gearType.value == 'Rack'):
+                            pass
+                        else:
+                            #we shouldn't be here
+                            pass
+
         
             # Update manipulators
             if (args.input.id in ["SIOrigin", "SIDirection", "SIPlane", "AVRotation", "DVOffsetX", "DVOffsetY",
@@ -1736,6 +2025,7 @@ def preserveInputs(commandInputs, pers):
 
 
 def generateGear(commandInputs):
+    
     gearType = commandInputs.itemById("DDType").selectedItem.name
     standard = commandInputs.itemById("DDStandard").selectedItem.name
 

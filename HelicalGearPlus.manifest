@@ -1,12 +1,13 @@
 {
-	"autodeskProduct":	"Fusion360",
+	"autodeskProduct": "Fusion360",
 	"type":	"addin",
-	"author":	"Nico Schlueter",
-	"description":	{
-		"":	"Generates straight, helical and herringbone external, internal and rack gears as well as non-enveloping worms and worm gears"
+	"id": "624A08FF-8682-4CF0-BB68-861BD80C9626",
+	"author": "Nico Schlueter",
+	"description": {
+		"":	"Generates straight, helical and herringbone external, internal and rack gears as well as non enveloping worms and worm gears"
 	},
-	"version":	"1.0.6",
-	"runOnStartup":	false,
-	"supportedOS":	"windows|mac",
-	"editEnabled":	true
+	"version": "1.0.6",
+	"runOnStartup":	true,
+	"supportedOS": "windows|mac",
+	"editEnabled": true
 }
