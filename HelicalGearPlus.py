@@ -16,7 +16,7 @@ import math
 _handlers = []
 
 # Caches last gear for 
-lastGear = None
+lastGears = []
 lastInput = ""
 
 COMMANDID = "helicalGearPlus"
@@ -32,6 +32,10 @@ pers = {
     'VIPressureAngle': 0.3490658503988659,
     'VIModule': 0.3,
     'ISTeeth': 16,
+    'ISPlanets': 4,
+    'ISSunTeeth': 8,
+    'ISPlanetTeeth': 12,
+    'ISRingTeeth': 32,
     'VIBacklash': 0.0,
     'VIWidth': 1.0,
     'VIHeight': 0.8,
@@ -354,6 +358,9 @@ class HelicalGear:
         gear.rootDiameter = gear.outsideDiameter - 2 * gear.wholeDepth
         gear.circularPitch = gear.module * math.pi
 
+        gear.modelRotation = 0
+        gear.modelOffsetXY = [0, 0]
+
         return gear
 
     @staticmethod
@@ -390,11 +397,14 @@ class HelicalGear:
         gear.rootDiameter = gear.outsideDiameter - 2 * gear.wholeDepth
         gear.circularPitch = gear.module * math.pi
 
+        gear.modelRotation = 0
+        gear.modelOffsetXY = [0, 0]
+
         return gear
 
-    def modelGear(self, parentComponent, sameAsLast=False):
+    def modelGear(self, parentComponent, cachedBody=None):
         # Storres a copy of the last gear generated to speed up regeneation of the same gear
-        global lastGear
+        global lastGears
 
         # The temporaryBRep manager is a tool for creating 3d geometry without the use of features
         # The word temporary referrs to the geometry being created being virtual, but It can easily be converted to actual geometry
@@ -415,7 +425,7 @@ class HelicalGear:
         else:
             baseFeature = None
 
-        if (not (sameAsLast and lastGear)):
+        if (not cachedBody):
 
             # Creates sketch and draws tooth profile
             involute = Involute(self)
@@ -510,15 +520,11 @@ class HelicalGear:
 
             # Delete tooth sketch for performance
             sketch.deleteMe()
-
-            # Storres a copy of the newly generated gear    
-
-            lastGear = tbm.copy(gearBody)
         else:
             if (baseFeature):
-                component.bRepBodies.add(lastGear, baseFeature)
+                component.bRepBodies.add(cachedBody, baseFeature)
             else:
-                component.bRepBodies.add(lastGear)
+                component.bRepBodies.add(cachedbody)
 
         # Draws pitch diameter
         pitchDiameterSketch = component.sketches.add(component.xYConstructionPlane)
@@ -561,6 +567,9 @@ class RackGear:
         gear.module = gear.normalModule / cosHelixAngle
         gear.pressureAngle = math.atan2(math.tan(gear.normalPressureAngle), cosHelixAngle)
 
+        gear.modelRotation = 0
+        gear.modelOffsetXY = [0, 0]
+
         return gear
 
     @staticmethod
@@ -583,6 +592,9 @@ class RackGear:
         cosHelixAngle = math.cos(helixAngle)
         gear.normalModule = gear.module * cosHelixAngle
         gear.normalPressureAngle = math.atan(math.tan(radialPressureAngle) * math.cos(gear.helixAngle))
+
+        gear.modelRotation = 0
+        gear.modelOffsetXY = [0, 0]
 
         return gear
 
@@ -683,9 +695,9 @@ class RackGear:
         )
         return lines
 
-    def modelGear(self, parentComponent, sameAsLast=False):
+    def modelGear(self, parentComponent, cachedBody=None):
         # Storres a copy of the last gear generated to speed up regeneation of the same gear
-        global lastGear
+        global lastGears
 
         # Create new component
         occurrence = parentComponent.occurrences.addNewComponent(adsk.core.Matrix3D.create())
@@ -701,7 +713,7 @@ class RackGear:
         else:
             baseFeature = None
 
-        if (not (sameAsLast and lastGear)):
+        if (not cachedBody):
 
             teeth = math.ceil(
                 (self.length + 2 * math.tan(abs(self.helixAngle)) * self.width) / (self.normalModule * math.pi))
@@ -790,14 +802,11 @@ class RackGear:
             # Deletes tooling bodies
             for b in tools:
                 b.deleteMe()
-
-            # Storres a copy of the newly generated gear            
-            lastGear = tbm.copy(gearBody)
         else:
             if (baseFeature):
-                component.bRepBodies.add(lastGear, baseFeature)
+                component.bRepBodies.add(cachedBody, baseFeature)
             else:
-                component.bRepBodies.add(lastGear)
+                component.bRepBodies.add(cachedbody)
 
         # Adds "pitch diameter" line
         pitchDiameterSketch = component.sketches.add(component.xYConstructionPlane)
@@ -808,7 +817,6 @@ class RackGear:
         )
         pitchDiameterLine.isFixed = True
         pitchDiameterLine.isConstruction = True
-
 
         if (baseFeature):
             baseFeature.finishEdit()
@@ -867,6 +875,7 @@ class CommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             ddType.listItems.add("External Gear", pers['DDType'] == "External Gear", "resources/external")
             ddType.listItems.add("Internal Gear", pers['DDType'] == "Internal Gear", "resources/internal")
             ddType.listItems.add("Rack Gear", pers['DDType'] == "Rack Gear", "resources/rack")
+            ddType.listItems.add("Planetary Gearset", pers['DDType'] == "Planetary Gearset", "resources/planetary")
 
             viModule = tabSettings.children.addValueInput("VIModule", "Module", "mm",
                                                           adsk.core.ValueInput.createByReal(pers['VIModule']))
@@ -879,11 +888,40 @@ class CommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             viHelixAngle.tooltipDescription = "Angle of tooth twist.\n0 degrees produces a standard spur gear.\nHigh angles produce worm gears\nNegative angles produce left handed gears"
             viHelixAngle.toolClipFilename = 'resources/captions/HelixAngle.png'
 
+            # Number of gear teeth.
             isTeeth = tabSettings.children.addIntegerSpinnerCommandInput("ISTeeth", "Teeth", 1, 99999, 1,
                                                                          pers['ISTeeth'])
-            isTeeth.isVisible = pers['DDType'] != "Rack Gear"
+            isTeeth.isVisible = pers['DDType'] != "Rack Gear" and pers['DDType'] != "Planetary Gearset"
             isTeeth.tooltip = "Number of Teeth"
             isTeeth.tooltipDescription = "The number of teeth a gear has.\nGears with higher helix angle can have less teeth.\nFor example mots worm gears have only one."
+
+            # Number of planets.
+            isNumPlanets = tabSettings.children.addIntegerSpinnerCommandInput("ISPlanets", "Number of Planets", 1, 99999, 1,
+                                                                         pers['ISPlanets'])
+            isNumPlanets.isVisible = pers['DDType'] == "Planetary Gearset"
+            isNumPlanets.tooltip = "Number of Planets"
+            isNumPlanets.tooltipDescription = "The number of teeth a gear has.\nGears with higher helix angle can have less teeth.\nFor example mots worm gears have only one."
+
+            # Number of gear teeth of the sun.
+            isSunTeeth = tabSettings.children.addIntegerSpinnerCommandInput("ISSunTeeth", "Sun Teeth", 1, 99999, 1,
+                                                                         pers['ISSunTeeth'])
+            isSunTeeth.isVisible = pers['DDType'] == "Planetary Gearset"
+            isSunTeeth.tooltip = "Number of Teeth"
+            isSunTeeth.tooltipDescription = "The number of teeth a gear has.\nGears with higher helix angle can have less teeth.\nFor example mots worm gears have only one."
+
+            # Number of gear teeth of the planets.
+            isPlanetTeeth = tabSettings.children.addIntegerSpinnerCommandInput("ISPlanetTeeth", "Planet Teeth", 1, 99999, 1,
+                                                                         pers['ISPlanetTeeth'])
+            isPlanetTeeth.isVisible = pers['DDType'] == "Planetary Gearset"
+            isPlanetTeeth.tooltip = "Number of Teeth"
+            isPlanetTeeth.tooltipDescription = "The number of teeth a gear has.\nGears with higher helix angle can have less teeth.\nFor example mots worm gears have only one."
+
+            # Number of gear teeth of the ring.
+            isRingTeeth = tabSettings.children.addIntegerSpinnerCommandInput("ISRingTeeth", "Ring Teeth", 1, 99999, 1,
+                                                                         pers['ISRingTeeth'])
+            isRingTeeth.isVisible = pers['DDType'] == "Planetary Gearset"
+            isRingTeeth.tooltip = "Number of Teeth"
+            isRingTeeth.tooltipDescription = "The number of teeth a gear has.\nGears with higher helix angle can have less teeth.\nFor example mots worm gears have only one."
 
             viWidth = tabSettings.children.addValueInput("VIWidth", "Gear Width", "mm",
                                                          adsk.core.ValueInput.createByReal(pers['VIWidth']))
@@ -904,7 +942,7 @@ class CommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             viDiameter = tabSettings.children.addValueInput("VIDiameter", "Outside Diameter", "mm",
                                                             adsk.core.ValueInput.createByReal(pers['VIDiameter']))
             viDiameter.tooltip = "Internal Gear Outside Diameter"
-            viDiameter.isVisible = pers['DDType'] == "Internal Gear"
+            viDiameter.isVisible = pers['DDType'] == "Internal Gear" or pers['DDType'] == "Planetary Gearset"
 
             bvHerringbone = tabSettings.children.addBoolValueInput("BVHerringbone", "Herringbone", True, "",
                                                                    pers['BVHerringbone'])
@@ -1036,10 +1074,14 @@ class CommandExecuteHandler(adsk.core.CommandEventHandler):
             # Saves inputs to dict for persistence
             preserveInputs(args.command.commandInputs, pers)
 
-            gear = generateGear(args.command.commandInputs).modelGear(
-                adsk.core.Application.get().activeProduct.rootComponent)
-
-            moveGear(gear, args.command.commandInputs)
+            gears = generateGears(args.command.commandInputs)
+            for gear in gears:
+                model = gear.modelGear(
+                    adsk.core.Application.get().activeProduct.rootComponent)
+                moveGear(model, args.command.commandInputs, gear.modelRotation, gear.modelOffsetXY)
+            # Applies the movement in parametric design mode
+            if (adsk.core.Application.get().activeDocument.design.designType):
+                adsk.core.Application.get().activeDocument.design.snapshots.add()
 
         except:
             print(traceback.format_exc())
@@ -1058,15 +1100,29 @@ class CommandExecutePreviewHandler(adsk.core.CommandEventHandler):
                 preserveInputs(args.command.commandInputs, pers)
 
                 global lastInput
+                global lastGears
 
-                reuseGear = lastInput in ["APITabBar", "SIPlane", "SIOrigin", "SIDirection", "DDDirection",
+                tbm = adsk.fusion.TemporaryBRepManager.get()
+
+                reuseGear = len(lastGears) > 0 and lastInput in ["APITabBar", "SIPlane", "SIOrigin", "SIDirection", "DDDirection",
                                           "AVRotation", "BVFlipped", "DVOffsetX", "DVOffsetY", "DVOffsetZ"]
 
-                gear = generateGear(args.command.commandInputs).modelGear(
-                    adsk.core.Application.get().activeProduct.rootComponent, reuseGear)
-
-                moveGear(gear, args.command.commandInputs)
-
+                gears = generateGears(args.command.commandInputs)
+                
+                if (not reuseGear):
+                    lastGears = []
+                for i in range(len(gears)):
+                    gear = gears[i]
+                    model = gear.modelGear(
+                        adsk.core.Application.get().activeProduct.rootComponent, lastGears[i] if reuseGear else None)
+                    model.transform = adsk.core.Matrix3D.create()
+                    if (not reuseGear):
+                        lastGears.append(tbm.copy(model.bRepBodies[0]))
+                    moveGear(model, args.command.commandInputs, gear.modelRotation, gear.modelOffsetXY)
+                # Applies the movement in parametric design mode
+                if (not reuseGear and adsk.core.Application.get().activeDocument.design.designType):
+                    adsk.core.Application.get().activeDocument.design.snapshots.add()
+                
                 args.isValidResult = True
             else:
                 args.isValidResult = False
@@ -1083,8 +1139,10 @@ class CommandValidateInputsEventHandler(adsk.core.ValidateInputsEventHandler):
 
     def notify(self, args):
         try:
-            isInvalid = generateGear(args.inputs).isInvalid
-            args.areInputsValid = not isInvalid
+            args.areInputsValid = True
+            for gear in generateGears(args.inputs):
+                if gear.isInvalid:
+                    args.areInputsValid = False
         except:
             print(traceback.format_exc())
 
@@ -1102,19 +1160,26 @@ class CommandInputChangedHandler(adsk.core.InputChangedEventHandler):
             # Handles input visibillity based on gear type
             if (args.input.id == "DDType"):
                 gearType = args.input.selectedItem.name
-                args.inputs.itemById("ISTeeth").isVisible = gearType != "Rack Gear"
+                args.inputs.itemById("ISTeeth").isVisible = gearType != "Rack Gear" and gearType != "Planetary Gearset"
+                args.inputs.itemById("ISPlanets").isVisible = gearType == "Planetary Gearset"
+                args.inputs.itemById("ISSunTeeth").isVisible = gearType == "Planetary Gearset"
+                args.inputs.itemById("ISPlanetTeeth").isVisible = gearType == "Planetary Gearset"
+                args.inputs.itemById("ISRingTeeth").isVisible = gearType == "Planetary Gearset"
                 args.inputs.itemById("VIHeight").isVisible = gearType == "Rack Gear"
                 args.inputs.itemById("VILength").isVisible = gearType == "Rack Gear"
-                args.inputs.itemById("VIDiameter").isVisible = gearType == "Internal Gear"
+                args.inputs.itemById("VIDiameter").isVisible = gearType == "Internal Gear" or gearType == "Planetary Gearset"
             # Updates Information
             if (args.inputs.itemById("TabProperties") and args.inputs.itemById("TabProperties").isActive):
-                gear = generateGear(args.inputs)
+                gear = generateGears(args.inputs)[0]
                 tbProperties = args.inputs.itemById("TBProperties")
                 tbProperties.numRows = len(str(gear).split('\n'))
                 tbProperties.text = str(gear)
             # Updates Warning Message
             if (not args.input.id[:2] == "TB"):
-                isInvalid = generateGear(args.input.parentCommand.commandInputs).isInvalid
+                isInvalid = False
+                for gear in generateGears(args.input.parentCommand.commandInputs):
+                    if gear.isInvalid:
+                        isInvalid = True
                 if (isInvalid):
                     args.input.parentCommand.commandInputs.itemById(
                         "TBWarning1").formattedText = '<h3><font color="darkred">Error: {0}</font></h3>'.format(
@@ -1248,6 +1313,10 @@ def preserveInputs(commandInputs, pers):
     pers['VIPressureAngle'] = commandInputs.itemById("VIPressureAngle").value
     pers['VIModule'] = commandInputs.itemById("VIModule").value
     pers['ISTeeth'] = commandInputs.itemById("ISTeeth").value
+    pers['ISPlanets'] = commandInputs.itemById("ISPlanets").value
+    pers['ISSunTeeth'] = commandInputs.itemById("ISSunTeeth").value
+    pers['ISPlanetTeeth'] = commandInputs.itemById("ISPlanetTeeth").value
+    pers['ISRingTeeth'] = commandInputs.itemById("ISRingTeeth").value
     pers['VIBacklash'] = commandInputs.itemById("VIBacklash").value
     pers['VIWidth'] = commandInputs.itemById("VIWidth").value
     pers['VIHeight'] = commandInputs.itemById("VIHeight").value
@@ -1258,101 +1327,99 @@ def preserveInputs(commandInputs, pers):
     pers['VIDedendum'] = commandInputs.itemById("VIDedendum").value
 
 
-def generateGear(commandInputs):
+def generateGears(commandInputs):
     gearType = commandInputs.itemById("DDType").selectedItem.name
     standard = commandInputs.itemById("DDStandard").selectedItem.name
 
+    rackParams = [
+        commandInputs.itemById("VIModule").value,
+        commandInputs.itemById("VIPressureAngle").value,
+        commandInputs.itemById("VIHelixAngle").value,
+        commandInputs.itemById("BVHerringbone").value,
+        commandInputs.itemById("VILength").value,
+        commandInputs.itemById("VIWidth").value,
+        commandInputs.itemById("VIHeight").value,
+        commandInputs.itemById("VIBacklash").value,
+        commandInputs.itemById("VIAddendum").value,
+        commandInputs.itemById("VIDedendum").value
+    ]
+    externalGearParams = [
+        commandInputs.itemById("ISTeeth").value,
+        commandInputs.itemById("VIModule").value,
+        commandInputs.itemById("VIPressureAngle").value,
+        commandInputs.itemById("VIHelixAngle").value,
+        commandInputs.itemById("VIBacklash").value,
+        commandInputs.itemById("VIAddendum").value,
+        commandInputs.itemById("VIDedendum").value,
+        commandInputs.itemById("VIWidth").value,
+        commandInputs.itemById("BVHerringbone").value
+    ]
+    internalGearParams = [
+        commandInputs.itemById("ISTeeth").value,
+        commandInputs.itemById("VIModule").value,
+        commandInputs.itemById("VIPressureAngle").value,
+        commandInputs.itemById("VIHelixAngle").value,
+        -commandInputs.itemById("VIBacklash").value,
+        commandInputs.itemById("VIDedendum").value,
+        commandInputs.itemById("VIAddendum").value,
+        commandInputs.itemById("VIWidth").value,
+        commandInputs.itemById("BVHerringbone").value,
+        commandInputs.itemById("VIDiameter").value
+    ]
+
     if (gearType == "Rack Gear"):
         if (standard == "Normal"):
-            gear = RackGear.createInNormalSystem(
-                commandInputs.itemById("VIModule").value,
-                commandInputs.itemById("VIPressureAngle").value,
-                commandInputs.itemById("VIHelixAngle").value,
-                commandInputs.itemById("BVHerringbone").value,
-                commandInputs.itemById("VILength").value,
-                commandInputs.itemById("VIWidth").value,
-                commandInputs.itemById("VIHeight").value,
-                commandInputs.itemById("VIBacklash").value,
-                commandInputs.itemById("VIAddendum").value,
-                commandInputs.itemById("VIDedendum").value
-            )
+            return [RackGear.createInNormalSystem(*rackParams)]
         else:
-            gear = RackGear.createInRadialSystem(
-                commandInputs.itemById("VIModule").value,
-                commandInputs.itemById("VIPressureAngle").value,
-                commandInputs.itemById("VIHelixAngle").value,
-                commandInputs.itemById("BVHerringbone").value,
-                commandInputs.itemById("VILength").value,
-                commandInputs.itemById("VIWidth").value,
-                commandInputs.itemById("VIHeight").value,
-                commandInputs.itemById("VIBacklash").value,
-                commandInputs.itemById("VIAddendum").value,
-                commandInputs.itemById("VIDedendum").value
-            )
+            return [RackGear.createInRadialSystem(*rackParams)]
     else:
         if (gearType == "External Gear"):
             if (standard == "Normal"):
-                gear = HelicalGear.createInNormalSystem(
-                    commandInputs.itemById("ISTeeth").value,
-                    commandInputs.itemById("VIModule").value,
-                    commandInputs.itemById("VIPressureAngle").value,
-                    commandInputs.itemById("VIHelixAngle").value,
-                    commandInputs.itemById("VIBacklash").value,
-                    commandInputs.itemById("VIAddendum").value,
-                    commandInputs.itemById("VIDedendum").value,
-                    commandInputs.itemById("VIWidth").value,
-                    commandInputs.itemById("BVHerringbone").value
-                )
+                return [HelicalGear.createInNormalSystem(*externalGearParams)]
             else:
-                gear = HelicalGear.createInRadialSystem(
-                    commandInputs.itemById("ISTeeth").value,
-                    commandInputs.itemById("VIModule").value,
-                    commandInputs.itemById("VIPressureAngle").value,
-                    commandInputs.itemById("VIHelixAngle").value,
-                    commandInputs.itemById("VIBacklash").value,
-                    commandInputs.itemById("VIAddendum").value,
-                    commandInputs.itemById("VIDedendum").value,
-                    commandInputs.itemById("VIWidth").value,
-                    commandInputs.itemById("BVHerringbone").value
-                )
-        else:
+                return [HelicalGear.createInRadialSystem(*externalGearParams)]
+        elif (gearType == "Internal Gear"):
             if (standard == "Normal"):
-                gear = HelicalGear.createInNormalSystem(
-                    commandInputs.itemById("ISTeeth").value,
-                    commandInputs.itemById("VIModule").value,
-                    commandInputs.itemById("VIPressureAngle").value,
-                    commandInputs.itemById("VIHelixAngle").value,
-                    -commandInputs.itemById("VIBacklash").value,
-                    commandInputs.itemById("VIDedendum").value,
-                    commandInputs.itemById("VIAddendum").value,
-                    commandInputs.itemById("VIWidth").value,
-                    commandInputs.itemById("BVHerringbone").value,
-                    commandInputs.itemById("VIDiameter").value
-                )
+                return [HelicalGear.createInNormalSystem(*internalGearParams)]
             else:
-                gear = HelicalGear.createInRadialSystem(
-                    commandInputs.itemById("ISTeeth").value,
-                    commandInputs.itemById("VIModule").value,
-                    commandInputs.itemById("VIPressureAngle").value,
-                    commandInputs.itemById("VIHelixAngle").value,
-                    -commandInputs.itemById("VIBacklash").value,
-                    commandInputs.itemById("VIDedendum").value,
-                    commandInputs.itemById("VIAddendum").value,
-                    commandInputs.itemById("VIWidth").value,
-                    commandInputs.itemById("BVHerringbone").value,
-                    commandInputs.itemById("VIDiameter").value
-                )
-    return gear
+                return [HelicalGear.createInRadialSystem(*internalGearParams)]
+        else: # gearType == "Planetary Gearset"
+            gears = []
+
+            params = externalGearParams.copy()
+            params[0] = commandInputs.itemById("ISSunTeeth").value
+            params[3] = -params[3] # Reverse the helix angle of the sun gear
+            sun = HelicalGear.createInNormalSystem(*params)
+            if ((commandInputs.itemById("ISPlanetTeeth").value) % 2 == 0):
+                sun.modelRotation = math.pi / commandInputs.itemById("ISSunTeeth").value
+            gears.append(sun)
+
+            params = externalGearParams.copy()
+            params[0] = commandInputs.itemById("ISPlanetTeeth").value
+            planetAngle = 2 * math.pi / commandInputs.itemById("ISPlanets").value
+            for i in range(commandInputs.itemById("ISPlanets").value):
+                planet = HelicalGear.createInNormalSystem(*params)
+                planet.modelRotation = i * planetAngle
+                planet.modelOffsetXY = [(planet.pitchDiameter + sun.pitchDiameter) / 2.0, 0]
+                gears.append(planet)
+
+            params = internalGearParams.copy()
+            params[0] = commandInputs.itemById("ISRingTeeth").value
+            gears.append(HelicalGear.createInNormalSystem(*params))
+            return gears
 
 
-def moveGear(gear, commandInputs):
+def moveGear(gear, commandInputs, modelRotation = 0, modelOffsetXY = [0, 0]):
+    moveMatrix = adsk.core.Matrix3D.create()
+    moveMatrix.translation = adsk.core.Vector3D.create(modelOffsetXY[0], modelOffsetXY[1], 0)
+    rotateMatrix = adsk.core.Matrix3D.create()
+    rotateMatrix.setToRotation(modelRotation, adsk.core.Vector3D.create(0, 0, 1), adsk.core.Point3D.create(0, 0, 0))
+    moveMatrix.transformBy(rotateMatrix)
     if (commandInputs.itemById("DDType").selectedItem.name != "Rack Gear"):
-        gear.transform = regularMoveMatrix(commandInputs)
+        moveMatrix.transformBy(regularMoveMatrix(commandInputs))
     else:
-        gear.transform = rackMoveMatrix(commandInputs)
-    # Applies the movement in parametric design mode
-    if (adsk.core.Application.get().activeDocument.design.designType):
-        adsk.core.Application.get().activeDocument.design.snapshots.add()
+        moveMatrix.transformBy(rackMoveMatrix(commandInputs))
+    gear.transform = moveMatrix
 
 
 def regularMoveMatrix(commandInputs):
