@@ -30,6 +30,18 @@ Parts based on Ross Korsky's Helical gear generator.
 
 # Changelog
 
+## 1.0.7 profile shift
+- Added profile shift capabilities
+- Added Center Center calculation
+- Added a bore/key interface
+- Extended the output in the info tab to accomodate the profileshift calculations
+- in the code marked the references used to checkout the features
+- Added automatic meshing/positioning of gears
+  By selecting a gear, relevant parameters will be copied to mesh with the new gear
+  Meshing will be automatically generated. The position control will move the meshing point around the selected gear.
+  You still can use the other positioning features when no gear is selected.
+
+
 ## 1.0.6 Positioning Update
 - Added positioning options 
 
