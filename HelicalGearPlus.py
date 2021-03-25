@@ -402,7 +402,7 @@ class HelicalGear:
         # Create new component
         occurrence = parentComponent.occurrences.addNewComponent(adsk.core.Matrix3D.create())
         component = occurrence.component
-        component.name = 'Healical Gear ({0}{1}@{2:.2f} m={3})'.format(
+        component.name = 'Helical Gear ({0}{1}@{2:.2f} m={3})'.format(
             self.toothCount,
             'L' if self.helixAngle < 0 else 'R',
             abs(math.degrees(self.helixAngle)),
@@ -690,7 +690,7 @@ class RackGear:
         # Create new component
         occurrence = parentComponent.occurrences.addNewComponent(adsk.core.Matrix3D.create())
         component = occurrence.component
-        component.name = 'Healical Rack ({0}mm {1}@{2:.2f} m={3})'.format(
+        component.name = 'Helical Rack ({0}mm {1}@{2:.2f} m={3})'.format(
             self.length * 10,
             'L' if self.helixAngle < 0 else 'R',
             abs(math.degrees(self.helixAngle)),
