@@ -718,7 +718,7 @@ class RackGear:
                     0,
                     self.normalModule, teeth, self.height, self.normalPressureAngle, self.helixAngle,
                     self.backlash, self.addendum, self.dedendum
-                ))
+                ), allowSelfIntersections = True)
                 wireBody2, _ = tbm.createWireFromCurves(self.rackLines(
                     -self.length / 2 - math.tan(abs(self.helixAngle)) * self.width / 2,
                     0,
@@ -726,14 +726,14 @@ class RackGear:
                     self.normalModule, teeth, self.height, self.normalPressureAngle, self.helixAngle,
                     self.backlash, self.addendum,
                     self.dedendum
-                ))
+                ), allowSelfIntersections = True)
                 wireBody3, _ = tbm.createWireFromCurves(self.rackLines(
                     -self.length / 2 - (math.tan(abs(self.helixAngle)) + math.tan(self.helixAngle)) * self.width / 2,
                     self.width / 2,
                     0,
                     self.normalModule, teeth, self.height, self.normalPressureAngle, self.helixAngle,
                     self.backlash, self.addendum, self.dedendum
-                ))
+                ), allowSelfIntersections = True)
             else:
                 wireBody1, _ = tbm.createWireFromCurves(self.rackLines(
                     -self.length / 2 - (math.tan(abs(self.helixAngle)) + math.tan(self.helixAngle)) * self.width,
@@ -741,7 +741,7 @@ class RackGear:
                     0,
                     self.normalModule, teeth, self.height, self.normalPressureAngle, self.helixAngle,
                     self.backlash, self.addendum, self.dedendum
-                ))
+                ), allowSelfIntersections = True)
                 wireBody2, _ = tbm.createWireFromCurves(self.rackLines(
                     -self.length / 2 - math.tan(abs(self.helixAngle)) * self.width,
                     self.width / 2,
@@ -749,7 +749,7 @@ class RackGear:
                     self.normalModule, teeth, self.height, self.normalPressureAngle, self.helixAngle,
                     self.backlash, self.addendum,
                     self.dedendum
-                ))
+                ), allowSelfIntersections = True)
 
             # Creates the planar end caps.
             tempBRepBodies.append(tbm.createFaceFromPlanarWires([wireBody1]))
@@ -788,6 +788,7 @@ class RackGear:
                 gearBody = component.bRepBodies.add(box)
             body.deleteMe()
             # Deletes tooling bodies
+            # pylint: disable-next=not-an-iterable
             for b in tools:
                 b.deleteMe()
 
@@ -857,16 +858,20 @@ class CommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             inputs = cmd.commandInputs
 
             # Tabs
+            # pylint: disable=no-value-for-parameter
             tabSettings = inputs.addTabCommandInput("TabSettings", "Settings")
             tabAdvanced = inputs.addTabCommandInput("TabAdvanced", "Advanced")
             tabPosition = inputs.addTabCommandInput("TabPosition", "Position")
             tabProperties = inputs.addTabCommandInput("TabProperties", "Info")
+            # pylint: enable=no-value-for-parameter
 
             # Setting command Inputs
-            ddType = tabSettings.children.addDropDownCommandInput("DDType", "Type", 0)
+            # pylint: disable=no-value-for-parameter
+            ddType = tabSettings.children.addDropDownCommandInput("DDType", "Type", adsk.core.DropDownStyles.LabeledIconDropDownStyle)
             ddType.listItems.add("External Gear", pers['DDType'] == "External Gear", "resources/external")
             ddType.listItems.add("Internal Gear", pers['DDType'] == "Internal Gear", "resources/internal")
             ddType.listItems.add("Rack Gear", pers['DDType'] == "Rack Gear", "resources/rack")
+            # pylint: enable=no-value-for-parameter
 
             viModule = tabSettings.children.addValueInput("VIModule", "Module", "mm",
                                                           adsk.core.ValueInput.createByReal(pers['VIModule']))
@@ -919,9 +924,11 @@ class CommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             tbWarning1 = tabSettings.children.addTextBoxCommandInput("TBWarning1", "", '', 2, True)
 
             # Advanced command inputs
-            ddStandard = tabAdvanced.children.addDropDownCommandInput("DDStandard", "Standard", 0)
+            # pylint: disable=no-value-for-parameter
+            ddStandard = tabAdvanced.children.addDropDownCommandInput("DDStandard", "Standard", adsk.core.DropDownStyles.LabeledIconDropDownStyle)
             ddStandard.listItems.add("Normal", pers['DDStandard'] == "Normal", "resources/normal")
             ddStandard.listItems.add("Radial", pers['DDStandard'] == "Radial", "resources/radial")
+            # pylint: enable=no-value-for-parameter
             ddStandard.toolClipFilename = 'resources/captions/NormalVsRadial.png'
             ddStandard.tooltipDescription = "Normal System: Pressure angle and module are defined relative to the normal of the tooth.\n\nRadial System: Pressure angle and module are defined relative to the plane of rotation."
 
@@ -975,14 +982,17 @@ class CommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             siOrigin.tooltip = "Gear Center Point"
             siOrigin.tooltipDescription = "Select the center point of the gear.\nWill be projected onto the plane.\n\nValid selections:\n    Sketch Points\n    Construction Points\n    BRep Vertices\n    Circular BRep Edges\n"
 
+            # pylint: disable-next=no-value-for-parameter
             bvFlipped = tabPosition.children.addBoolValueInput("BVFlipped", "Flip", True)
             bvFlipped.isVisible = False
             bvFlipped.tooltip = "Flips rack direction"
 
-            ddDirection = tabPosition.children.addDropDownCommandInput("DDDirection", "Direction", 0)
+            # pylint: disable=no-value-for-parameter
+            ddDirection = tabPosition.children.addDropDownCommandInput("DDDirection", "Direction", adsk.core.DropDownStyles.LabeledIconDropDownStyle)
             ddDirection.listItems.add("Front", True, "resources/front")
             ddDirection.listItems.add("Center", False, "resources/center")
             ddDirection.listItems.add("Back", False, "resources/back")
+            # pylint: enable=no-value-for-parameter
             ddDirection.tooltip = "Direction"
             ddDirection.tooltipDescription = "Choose what side of the plane the gear is placed on."
 
@@ -1036,8 +1046,10 @@ class CommandExecuteHandler(adsk.core.CommandEventHandler):
             # Saves inputs to dict for persistence
             preserveInputs(args.command.commandInputs, pers)
 
+            # pylint: disable=no-member
             gear = generateGear(args.command.commandInputs).modelGear(
                 adsk.core.Application.get().activeProduct.rootComponent)
+            # pylint: enable=no-member
 
             moveGear(gear, args.command.commandInputs)
 
@@ -1062,8 +1074,10 @@ class CommandExecutePreviewHandler(adsk.core.CommandEventHandler):
                 reuseGear = lastInput in ["APITabBar", "SIPlane", "SIOrigin", "SIDirection", "DDDirection",
                                           "AVRotation", "BVFlipped", "DVOffsetX", "DVOffsetY", "DVOffsetZ"]
 
+                # pylint: disable=no-member
                 gear = generateGear(args.command.commandInputs).modelGear(
                     adsk.core.Application.get().activeProduct.rootComponent, reuseGear)
+                # pylint: enable=no-member
 
                 moveGear(gear, args.command.commandInputs)
 
@@ -1351,8 +1365,10 @@ def moveGear(gear, commandInputs):
     else:
         gear.transform = rackMoveMatrix(commandInputs)
     # Applies the movement in parametric design mode
+    # pylint: disable=no-member
     if (adsk.core.Application.get().activeDocument.design.designType):
         adsk.core.Application.get().activeDocument.design.snapshots.add()
+    # pylint: enable=no-member
 
 
 def regularMoveMatrix(commandInputs):
@@ -1638,6 +1654,7 @@ def run(context):
             cmdDef.toolClipFilename = 'resources/captions/Gears.png'
         # Adds the commandDefinition to the toolbar
         for panel in TOOLBARPANELS:
+            # pylint: disable-next=no-value-for-parameter
             ui.allToolbarPanels.itemById(panel).controls.addCommand(cmdDef)
 
         onCommandCreated = CommandCreatedHandler()
