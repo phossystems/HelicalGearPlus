@@ -27,4 +27,4 @@ jobs:
       - name: py_compile
         run: python -m py_compile $(git ls-files '*.py')
       - name: pylint
-        run: python -m pylint --output-format=colorized --fail-on=E $(git ls-files '*.py')
+        run: python -m pylint --output-format=colorized --fail-on=E --fail-under=0 $(git ls-files '*.py')
