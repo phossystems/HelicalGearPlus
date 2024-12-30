@@ -415,11 +415,11 @@ class HelicalGear:
         return gear
 
     def modelGear(self, parentComponent, sameAsLast=False):
-        # Storres a copy of the last gear generated to speed up regeneation of the same gear
+        # Stores a copy of the last gear generated to speed up regeneration of the same gear
         global lastGear
 
         # The temporaryBRep manager is a tool for creating 3d geometry without the use of features
-        # The word temporary referrs to the geometry being created being virtual, but It can easily be converted to actual geometry
+        # The word temporary refers to the geometry being created being virtual, but It can easily be converted to actual geometry
         tbm = adsk.fusion.TemporaryBRepManager.get()
         # Create new component
         occurrence: adsk.fusion.Occurrence = parentComponent.occurrences.addNewComponent(adsk.core.Matrix3D.create())
@@ -479,13 +479,13 @@ class HelicalGear:
                 line2 = sketch.sketchCurves.sketchLines.addByTwoPoints(adsk.core.Point3D.create(0, 0, 0),
                                                                        adsk.core.Point3D.create(0, 0, -self.width / 2))
 
-            # Reactivates sketch computation and puts all profules into an OC
+            # Reactivates sketch computation and puts all profiles into an OC
             sketch.isComputeDeferred = False
             profs = adsk.core.ObjectCollection.create()
             for prof in sketch.profiles:
                 profs.add(prof)
 
-            # Creates sweeep features
+            # Creates sweep features
             if not self.herringbone:
                 path1 = component.features.createPath(line1)
                 sweepInput = component.features.sweepFeatures.createInput(profs, path1,
@@ -529,7 +529,7 @@ class HelicalGear:
             # Delete tooth sketch for performance
             sketch.deleteMe()
 
-            # Storres a copy of the newly generated gear
+            # Stores a copy of the newly generated gear
 
             lastGear = tbm.copy(gearBody)
         else:
@@ -713,7 +713,7 @@ class RackGear:
         return lines
 
     def modelGear(self, parentComponent, sameAsLast=False):
-        # Storres a copy of the last gear generated to speed up regeneation of the same gear
+        # Stores a copy of the last gear generated to speed up regeneration of the same gear
         global lastGear
 
         # Create new component
@@ -731,7 +731,7 @@ class RackGear:
             teeth = math.ceil(
                 (self.length + 2 * math.tan(abs(self.helixAngle)) * self.width) / (self.normalModule * math.pi))
             # The temporaryBRep manager is a tool for creating 3d geometry without the use of features
-            # The word temporary referrs to the geometry being created being virtual, but It can easily be converted to actual geometry
+            # The word temporary refers to the geometry being created being virtual, but It can easily be converted to actual geometry
             tbm = adsk.fusion.TemporaryBRepManager.get()
             # Array to keep track of TempBRepBodies
             tempBRepBodies = []
@@ -782,7 +782,7 @@ class RackGear:
                 tempBRepBodies.append(tbm.createFaceFromPlanarWires([wireBody3]))
             else:
                 tempBRepBodies.append(tbm.createFaceFromPlanarWires([wireBody2]))
-            # Creates the ruled surface connectiong the two end caps
+            # Creates the ruled surface connecting the two end caps
             tempBRepBodies.append(tbm.createRuledSurface(wireBody1.wires.item(0), wireBody2.wires.item(0)))
             if self.herringbone:
                 tempBRepBodies.append(tbm.createRuledSurface(wireBody2.wires.item(0), wireBody3.wires.item(0)))
@@ -793,7 +793,7 @@ class RackGear:
                     tools.add(component.bRepBodies.add(b, baseFeature))
                 else:
                     tools.add(component.bRepBodies.add(b))
-            # Boundary fills enclosed voulume
+            # Boundary fills enclosed volume
             boundaryFillInput = component.features.boundaryFillFeatures.createInput(tools,
                                                                                     adsk.fusion.FeatureOperations.NewBodyFeatureOperation)
             if baseFeature:
@@ -868,7 +868,7 @@ class CommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             cmd.inputChanged.add(onInputChanged)
             _handlers.append(onInputChanged)
 
-            # Registers the CommandDestryHandler
+            # Registers the CommandDestroyHandler
             onDestroy = CommandDestroyHandler()
             cmd.destroy.add(onDestroy)
             _handlers.append(onDestroy)
@@ -1140,7 +1140,7 @@ class CommandInputChangedHandler(adsk.core.InputChangedEventHandler):
         try:
             global lastInput
             lastInput = args.input.id
-            # Handles input visibillity based on gear type
+            # Handles input visibility based on gear type
             if args.input.id == "DDType":
                 gearType = args.input.selectedItem.name
                 args.inputs.itemById("ISTeeth").isVisible = gearType != "Rack Gear"
@@ -1193,7 +1193,7 @@ class CommandInputChangedHandler(adsk.core.InputChangedEventHandler):
                 if args.input.parentCommand.commandInputs.itemById("DDType").selectedItem.name != "Rack Gear":
                     mat = regularMoveMatrix(args.input.parentCommand.commandInputs)
 
-                    # Creates a directin vector aligned to relative Z+
+                    # Creates a direction vector aligned to relative Z+
                     d = adsk.core.Vector3D.create(0, 0, 1)
                     d.transformBy(mat)
 
@@ -1219,7 +1219,7 @@ class CommandInputChangedHandler(adsk.core.InputChangedEventHandler):
                 else:
                     mat = rackMoveMatrix(args.input.parentCommand.commandInputs)
 
-                    # Creates a directin vector aligned to relative xyz
+                    # Creates a direction vector aligned to relative xyz
                     x = adsk.core.Vector3D.create(1, 0, 0)
                     x.transformBy(mat)
                     y = adsk.core.Vector3D.create(0, 0, 1)
@@ -1229,7 +1229,7 @@ class CommandInputChangedHandler(adsk.core.InputChangedEventHandler):
 
                     p = mat.translation
 
-                    # Flippes x when rack is flipped
+                    # Flips x when rack is flipped
                     xf = x.copy()
                     if args.input.parentCommand.commandInputs.itemById("BVFlipped").value:
                         xf.scaleBy(-1)
@@ -1417,7 +1417,7 @@ def regularMoveMatrix(commandInputs):
                 point.parentSketch.yDirection
             )
 
-        # No useable plane selected
+        # No usable plane selected
         else:
             planePrim = adsk.core.Plane.createUsingDirections(
                 pointPrim,
@@ -1545,7 +1545,7 @@ def moveMatrixPxzfxyz(position, x, z, flip, offsetX, offsetY, offsetZ):
 
     p = adsk.core.Plane.createUsingDirections(adsk.core.Point3D.create(0, 0, 0), z, x)
 
-    # Z & Y flipped due to racks beining generated out of plane
+    # Z & Y flipped due to racks being generated out of plane
     mat.setToAlignCoordinateSystems(
         adsk.core.Point3D.create(-offsetX, offsetZ, -offsetY),
         adsk.core.Vector3D.create(1, 0, 0),
