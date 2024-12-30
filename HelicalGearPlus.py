@@ -1675,7 +1675,7 @@ def run(context):
         if not cmdDef:
             cmdDef = commandDefinitions.addButtonDefinition(COMMANDID, COMMANDNAME,
                                                             COMMANDTOOLTIP, 'resources')
-            cmdDef.tooltip = "Generates external, inrernal & rack gears of any helix angle.\nThis includes regular sput gears as well as worm gears."
+            cmdDef.tooltip = "Generates external, internal & rack gears of any helix angle.\nThis includes regular spur gears as well as worm gears."
             cmdDef.toolClipFilename = 'resources/captions/Gears.png'
         # Adds the commandDefinition to the toolbar
         for panel in TOOLBARPANELS:
