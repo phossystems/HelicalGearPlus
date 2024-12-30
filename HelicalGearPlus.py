@@ -20,7 +20,7 @@ import adsk.fusion
 _handlers = []
 
 # Caches last gear for
-lastGear = None
+lastGear: adsk.fusion.BRepBody = None
 lastInput = ""
 
 COMMANDID = "helicalGearPlus"
@@ -202,7 +202,25 @@ class Involute:
 
 class HelicalGear:
     def __init__(self):
-        pass
+        self.backlash: float = None
+        self.helixAngle: float = None
+        self.toothCount: int = None
+        self.width: float = None
+        self.herringbone: bool = None
+        self.internalOutsideDiameter: bool = None
+        self.normalModule: float = None
+        self.normalPressureAngle: float = None
+        self.normalCircularPitch: float = None
+        self.virtualTeeth: float = None
+        self.module: float = None
+        self.pressureAngle: float = None
+        self.pitchDiameter: float = None
+        self.baseDiameter: float = None
+        self.addendum: float = None
+        self.wholeDepth: float = None
+        self.outsideDiameter: float = None
+        self.rootDiameter: float = None
+        self.circularPitch: float = None
 
     @property
     def isUndercutRequried(self):
@@ -307,22 +325,22 @@ class HelicalGear:
         return displacement / (math.tan(math.radians(90) + self.helixAngle) * (self.pitchDiameter / 2))
 
     def __str__(self):
-        str = ''
-        str += '\n'
-        str += f'root diameter..............:  {self.rootDiameter * 10:.3f} mm\n'
-        str += f'base diameter.............:  {self.baseDiameter * 10:.3f} mm\n'
-        str += f'pitch diameter............:  {self.pitchDiameter * 10:.3f} mm\n'
-        str += f'outside diameter.........:  {self.outsideDiameter * 10:.3f} mm\n'
-        str += '\n'
-        str += f'module.......................:  {self.module * 10:.3f} mm\n'
-        str += f'normal module...........:  {self.normalModule * 10:.3f} mm\n'
-        str += f'pressure angle............:  {math.degrees(self.pressureAngle):.3f} deg\n'
-        str += f'normal pressure angle:  {math.degrees(self.normalPressureAngle):.3f} deg\n'
-        str += '\n'
+        s = ''
+        s += '\n'
+        s += f'root diameter..............:  {self.rootDiameter * 10:.3f} mm\n'
+        s += f'base diameter.............:  {self.baseDiameter * 10:.3f} mm\n'
+        s += f'pitch diameter............:  {self.pitchDiameter * 10:.3f} mm\n'
+        s += f'outside diameter.........:  {self.outsideDiameter * 10:.3f} mm\n'
+        s += '\n'
+        s += f'module.......................:  {self.module * 10:.3f} mm\n'
+        s += f'normal module...........:  {self.normalModule * 10:.3f} mm\n'
+        s += f'pressure angle............:  {math.degrees(self.pressureAngle):.3f} deg\n'
+        s += f'normal pressure angle:  {math.degrees(self.normalPressureAngle):.3f} deg\n'
+        s += '\n'
         if self.helixAngle != 0:
-            str += f'length per revolution..:  {abs(self.verticalLoopSeperation) * 10:.3f} mm\n'
-            str += '\n'
-        return str
+            s += f'length per revolution..:  {abs(self.verticalLoopSeperation) * 10:.3f} mm\n'
+            s += '\n'
+        return s
 
     @staticmethod
     def createInNormalSystem(toothCount, normalModule, normalPressureAngle, helixAngle, backlash=0, addendum=1,
@@ -404,7 +422,7 @@ class HelicalGear:
         # The word temporary referrs to the geometry being created being virtual, but It can easily be converted to actual geometry
         tbm = adsk.fusion.TemporaryBRepManager.get()
         # Create new component
-        occurrence = parentComponent.occurrences.addNewComponent(adsk.core.Matrix3D.create())
+        occurrence: adsk.fusion.Occurrence = parentComponent.occurrences.addNewComponent(adsk.core.Matrix3D.create())
         component = occurrence.component
         component.name = f'Helical Gear ({self.toothCount}{"L" if self.helixAngle < 0 else "R"}@{abs(math.degrees(self.helixAngle)):.2f} m={round(self.normalModule * 10, 4)})'
 
@@ -538,7 +556,18 @@ class HelicalGear:
 class RackGear:
 
     def __init__(self):
-        pass
+        self.normalModule: float = None
+        self.normalPressureAngle: float = None
+        self.helixAngle: float = None
+        self.herringbone: bool = None
+        self.length: float = None
+        self.width: float = None
+        self.height: float = None
+        self.backlash: float = None
+        self.addendum: float = None
+        self.dedendum: float = None
+        self.module: float = None
+        self.pressureAngle: float = None
 
     @staticmethod
     def createInNormalSystem(normalModule, normalPressureAngle, helixAngle, herringbone, length, width, height,
@@ -587,14 +616,14 @@ class RackGear:
         return gear
 
     def __str__(self):
-        str = ''
-        str += '\n'
-        str += f'module.......................:  {self.module * 10:.3f} mm\n'
-        str += f'normal module...........:  {self.normalModule * 10:.3f} mm\n'
-        str += f'pressure angle............:  {math.degrees(self.pressureAngle):.3f} deg\n'
-        str += f'normal pressure angle:  {math.degrees(self.normalPressureAngle):.3f} deg\n'
-        str += '\n'
-        return str
+        s = ''
+        s += '\n'
+        s += f'module.......................:  {self.module * 10:.3f} mm\n'
+        s += f'normal module...........:  {self.normalModule * 10:.3f} mm\n'
+        s += f'pressure angle............:  {math.degrees(self.pressureAngle):.3f} deg\n'
+        s += f'normal pressure angle:  {math.degrees(self.normalPressureAngle):.3f} deg\n'
+        s += '\n'
+        return s
 
     @property
     def isInvalid(self):
@@ -688,7 +717,7 @@ class RackGear:
         global lastGear
 
         # Create new component
-        occurrence = parentComponent.occurrences.addNewComponent(adsk.core.Matrix3D.create())
+        occurrence: adsk.fusion.Occurrence = parentComponent.occurrences.addNewComponent(adsk.core.Matrix3D.create())
         component = occurrence.component
         component.name = f'Helical Rack ({self.length * 10}mm {"L" if self.helixAngle < 0 else "R"}@{abs(math.degrees(self.helixAngle)):.2f} m={round(self.normalModule * 10, 4)})'
         if parentComponent.parentDesign.designType:
